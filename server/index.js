@@ -57,14 +57,20 @@ io.on('connection', (socket) => {
 
     // Oyuna katıl (tek oda)
     socket.on('joinGame', (data) => {
-        const { playerName, teamMode, avatar } = data;
+        const { playerName, teamMode, stackingMode, penaltyMode, avatar } = data;
 
+
+        console.log(`[DEBUG] Join Request Received: Name=${playerName}, Avatar=${avatar}`);
         Logger.socket(`Katılma isteği: ${playerName}`);
 
-        // Takım modu ilk katılan tarafından belirlenir
+        // Oyun modları ilk katılan tarafından belirlenir
         if (MAIN_ROOM.players.length === 0) {
             MAIN_ROOM.teamMode = teamMode;
+            MAIN_ROOM.stackingMode = stackingMode || false;
+            MAIN_ROOM.penaltyMode = penaltyMode || false;
+            MAIN_ROOM.minimumOpenScore = 101; // Katlamalı mod için başlangıç değeri
             MAIN_ROOM.scores = teamMode ? { team1: 0, team2: 0 } : {};
+            Logger.game(`Oyun modları: Takım=${teamMode}, Katlamalı=${stackingMode}, Cezalı=${penaltyMode}`);
         }
 
         const activePlayers = getActivePlayers();
@@ -321,6 +327,7 @@ io.on('connection', (socket) => {
 
         const playerIndex = MAIN_ROOM.players.findIndex(p => p.socketId === socket.id);
         if (playerIndex === -1 || playerIndex !== MAIN_ROOM.game.currentPlayer) {
+            console.log(`[DEBUG] Turn Error (Draw): Requesting=${playerIndex} (ID:${socket.id}), Current=${MAIN_ROOM.game.currentPlayer}`);
             socket.emit('error', { message: 'Sıra sizde değil!' });
             return;
         }
@@ -381,6 +388,7 @@ io.on('connection', (socket) => {
 
         const playerIndex = MAIN_ROOM.players.findIndex(p => p.socketId === socket.id);
         if (playerIndex === -1 || playerIndex !== MAIN_ROOM.game.currentPlayer) {
+            console.log(`[DEBUG] Turn Error (Draw): Requesting=${playerIndex} (ID:${socket.id}), Current=${MAIN_ROOM.game.currentPlayer}`);
             socket.emit('error', { message: 'Sıra sizde değil!' });
             return;
         }
@@ -391,6 +399,54 @@ io.on('connection', (socket) => {
         }
 
         const tileIndex = data.tileIndex;
+        const tileToDiscard = MAIN_ROOM.game.playerTiles[playerIndex][tileIndex];
+
+        if (!tileToDiscard) {
+            socket.emit('error', { message: 'Geçersiz taş!' });
+            return;
+        }
+
+        // İŞLER TAŞ CEZASI: Atılan taş bir açık gruba eklenebilir mi?
+        let isPlayableTile = false;
+        for (let i = 0; i < 4; i++) {
+            const state = MAIN_ROOM.game.playerStates[i];
+            if (!state.hasOpened || !state.openedGroups) continue;
+
+            for (const group of state.openedGroups) {
+                // Taşı grubun başına veya sonuna eklemeyi dene
+                const withLeft = [tileToDiscard, ...group];
+                const withRight = [...group, tileToDiscard];
+
+                if (MAIN_ROOM.game.isValidGroup(withLeft) || MAIN_ROOM.game.isValidGroup(withRight)) {
+                    isPlayableTile = true;
+                    break;
+                }
+            }
+            if (isPlayableTile) break;
+        }
+
+        // Ceza uygula
+        if (isPlayableTile && MAIN_ROOM.penaltyMode) {
+            // Cezalı modda işler taş atma cezası
+            if (MAIN_ROOM.teamMode) {
+                const team = playerIndex % 2 === 0 ? 'team1' : 'team2';
+                MAIN_ROOM.scores[team] = (MAIN_ROOM.scores[team] || 0) + 101;
+            } else {
+                const playerName = MAIN_ROOM.players[playerIndex].name;
+                MAIN_ROOM.scores[playerName] = (MAIN_ROOM.scores[playerName] || 0) + 101;
+            }
+
+            io.to('MAIN').emit('penaltyApplied', {
+                playerIndex: playerIndex,
+                playerName: socket.playerName,
+                reason: 'İşler taş attı!',
+                penalty: 101,
+                scores: MAIN_ROOM.scores
+            });
+
+            Logger.warning(`⚠️ ${socket.playerName} işler taş attı! +101 ceza`);
+        }
+
         const discardedTile = MAIN_ROOM.game.discardTile(playerIndex, tileIndex);
 
         if (!discardedTile) {
@@ -410,9 +466,10 @@ io.on('connection', (socket) => {
             tile: discardedTile,            // Hangi taş
             nextPlayer: nextPlayer,         // Sıra kimde
             tileCount: MAIN_ROOM.game.playerTiles[playerIndex].length,
-            leftDiscard: leftDiscard        // Sonraki oyuncunun solundaki taş
+            leftDiscard: leftDiscard,       // Sonraki oyuncunun solundaki taş
+            isPlayableTile: isPlayableTile  // İşler taş mıydı?
         });
-        Logger.game(`Taş atıldı: ${MAIN_ROOM.players[playerIndex].name} -> ${discardedTile ? discardedTile.id : '?'}`);
+        Logger.game(`Taş atıldı: ${MAIN_ROOM.players[playerIndex].name} -> ${discardedTile ? discardedTile.id : '?'}${isPlayableTile ? ' (İŞLER!)' : ''}`);
     });
 
     // Taşları sırala
@@ -441,9 +498,65 @@ io.on('connection', (socket) => {
         const groups = data.groups;
         const score = data.score;
 
-        if (score < 101) {
-            socket.emit('error', { message: 'En az 101 puan gerekli!' });
+        // Minimum puan kontrolü
+        const minScore = MAIN_ROOM.minimumOpenScore || 101;
+
+        if (score < minScore) {
+            if (MAIN_ROOM.stackingMode) {
+                socket.emit('error', { message: `Katlamalı mod: En az ${minScore} puan gerekli!` });
+            } else {
+                socket.emit('error', { message: 'En az 101 puan gerekli!' });
+            }
             return;
+        }
+
+        // Yerden çekilen taş kullanılmalı kontrolü
+        const playerState = MAIN_ROOM.game.playerStates[playerIndex];
+        const drawnFromDiscard = playerState.drawnFromDiscardTile;
+
+        if (drawnFromDiscard) {
+            // Bu taş açılan gruplardan birinde kullanılmalı
+            const openedGroups = groups.map(groupIndices => {
+                return groupIndices.map(idx => MAIN_ROOM.game.playerTiles[playerIndex][idx]);
+            });
+
+            // Yerden çekilen taş gruplardan birinde var mı?
+            let tileUsed = false;
+            for (const group of openedGroups) {
+                for (const tile of group) {
+                    if (tile.id === drawnFromDiscard.id) {
+                        tileUsed = true;
+                        break;
+                    }
+                }
+                if (tileUsed) break;
+            }
+
+            if (!tileUsed) {
+                // Taşı geri ver (soldaki oyuncunun atık alanına)
+                const previousPlayer = (playerIndex + 3) % 4;
+                MAIN_ROOM.game.discardPiles[previousPlayer].push(drawnFromDiscard);
+
+                // Taşı oyuncunun elinden çıkar
+                const tileIdx = MAIN_ROOM.game.playerTiles[playerIndex].findIndex(t => t.id === drawnFromDiscard.id);
+                if (tileIdx !== -1) {
+                    MAIN_ROOM.game.playerTiles[playerIndex].splice(tileIdx, 1);
+                }
+
+                // Durumu temizle
+                playerState.drawnFromDiscardTile = null;
+
+                socket.emit('error', { message: 'Yerden çektiğiniz taşı kullanmalısınız! Taş geri bırakıldı.' });
+
+                // Güncel eli gönder
+                socket.emit('tilesUpdated', { tiles: MAIN_ROOM.game.playerTiles[playerIndex] });
+
+                Logger.warning(`⚠️ ${socket.playerName} yerden çektiği taşı kullanmadan açmaya çalıştı!`);
+                return;
+            }
+
+            // Taş kullanıldı, temizle
+            playerState.drawnFromDiscardTile = null;
         }
 
         const openedGroups = groups.map(groupIndices => {
@@ -460,6 +573,12 @@ io.on('connection', (socket) => {
         MAIN_ROOM.game.playerStates[playerIndex].openScore = score;
         MAIN_ROOM.game.playerStates[playerIndex].openedGroups = openedGroups;
 
+        // Katlamalı modda minimum puanı güncelle
+        if (MAIN_ROOM.stackingMode) {
+            MAIN_ROOM.minimumOpenScore = score + 1;
+            Logger.game(`📈 Katlamalı mod: Yeni minimum açma puanı: ${MAIN_ROOM.minimumOpenScore}`);
+        }
+
         io.to('MAIN').emit('handOpened', {
             playerIndex: playerIndex,
             playerName: socket.playerName,
@@ -467,7 +586,8 @@ io.on('connection', (socket) => {
             openedGroups: openedGroups,
             score: score,
             tileCount: MAIN_ROOM.game.playerTiles[playerIndex].length,
-            remainingTiles: MAIN_ROOM.game.playerTiles[playerIndex] // Güncel taş listesi
+            remainingTiles: MAIN_ROOM.game.playerTiles[playerIndex],
+            minimumOpenScore: MAIN_ROOM.minimumOpenScore // Client'a bildir
         });
 
         Logger.game(`📖 ${socket.playerName} el açtı: ${score} puan`);
@@ -497,32 +617,85 @@ io.on('connection', (socket) => {
         Logger.game(`🃏 ${socket.playerName} çift açtı: ${result.count} çift`);
     });
 
-    // Masadaki sete taş işle
+    // Masadaki sete taş işle (açılmış gruplara taş ekleme)
     socket.on('addToGroup', (data) => {
         if (!MAIN_ROOM.game) return;
 
         const playerIndex = MAIN_ROOM.players.findIndex(p => p.socketId === socket.id);
-        if (playerIndex === -1 || playerIndex !== MAIN_ROOM.game.currentPlayer) {
+        if (playerIndex === -1) {
+            socket.emit('error', { message: 'Oyuncu bulunamadı!' });
+            return;
+        }
+
+        if (playerIndex !== MAIN_ROOM.game.currentPlayer) {
             socket.emit('error', { message: 'Sıra sizde değil!' });
             return;
         }
 
-        const { groupIndex, tileIndices } = data;
-        const result = MAIN_ROOM.game.addToTableGroup(playerIndex, groupIndex, tileIndices);
-
-        if (!result.valid) {
-            socket.emit('error', { message: result.message });
+        // El açmış olmalı
+        if (!MAIN_ROOM.game.playerStates[playerIndex].hasOpened) {
+            socket.emit('error', { message: 'Önce el açmalısınız!' });
             return;
         }
 
+        const { tileIndex, targetPlayerIndex, targetGroupIndex, position } = data;
+
+        // Hedef oyuncunun açık grupları
+        const targetState = MAIN_ROOM.game.playerStates[targetPlayerIndex];
+        if (!targetState || !targetState.openedGroups || !targetState.openedGroups[targetGroupIndex]) {
+            socket.emit('error', { message: 'Hedef grup bulunamadı!' });
+            return;
+        }
+
+        // Taşı al
+        const tile = MAIN_ROOM.game.playerTiles[playerIndex][tileIndex];
+        if (!tile) {
+            socket.emit('error', { message: 'Taş bulunamadı!' });
+            return;
+        }
+
+        // Taşı gruba ekleyip kontrol et
+        const group = [...targetState.openedGroups[targetGroupIndex]];
+        if (position === 'left') {
+            group.unshift(tile);
+        } else {
+            group.push(tile);
+        }
+
+        // Grup hala geçerli mi kontrol et
+        if (!MAIN_ROOM.game.isValidGroup(group)) {
+            socket.emit('error', { message: 'Bu taş bu gruba eklenemez!' });
+            return;
+        }
+
+        // Taşı elden çıkar
+        MAIN_ROOM.game.playerTiles[playerIndex].splice(tileIndex, 1);
+
+        // Grubu güncelle
+        targetState.openedGroups[targetGroupIndex] = group;
+
+        // Tüm oyunculara bildir
         io.to('MAIN').emit('groupUpdated', {
             playerIndex: playerIndex,
-            groupIndex: groupIndex,
-            group: MAIN_ROOM.game.tableGroups[groupIndex],
-            playerTileCount: MAIN_ROOM.game.playerTiles[playerIndex].length
+            targetPlayerIndex: targetPlayerIndex,
+            targetGroupIndex: targetGroupIndex,
+            group: group,
+            playerTileCount: MAIN_ROOM.game.playerTiles[playerIndex].length,
+            addedTile: tile,
+            position: position
         });
 
-        Logger.game(`📝 ${socket.playerName} taş işledi`);
+        // İşleyen oyuncuya güncel taşlarını gönder
+        const processingSocket = [...io.sockets.sockets.values()].find(s =>
+            MAIN_ROOM.players.find(p => p.socketId === s.id && p.name === socket.playerName)
+        );
+        if (processingSocket) {
+            processingSocket.emit('tilesUpdated', {
+                tiles: MAIN_ROOM.game.playerTiles[playerIndex]
+            });
+        }
+
+        Logger.game(`📝 ${socket.playerName} taş işledi: ${tile.color} ${tile.number} -> ${MAIN_ROOM.players[targetPlayerIndex].name}'nin grubuna`);
     });
 
     // Oyunu bitir
@@ -531,6 +704,7 @@ io.on('connection', (socket) => {
 
         const playerIndex = MAIN_ROOM.players.findIndex(p => p.socketId === socket.id);
         if (playerIndex === -1 || playerIndex !== MAIN_ROOM.game.currentPlayer) {
+            console.log(`[DEBUG] Turn Error (Discard): Requesting=${playerIndex}, Current=${MAIN_ROOM.game.currentPlayer}`);
             socket.emit('error', { message: 'Sıra sizde değil!' });
             return;
         }

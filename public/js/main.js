@@ -1,15 +1,27 @@
 // 101 Okey - Ana Sayfa JavaScript (Sadeleştirilmiş)
 const socket = io();
 
+socket.on('connect', () => {
+    console.log('Socket connected:', socket.id);
+});
+
+socket.on('connect_error', (err) => {
+    console.error('Socket connection error:', err);
+    alert('Sunucuyla bağlantı kurulamadı! Lütfen sayfayı yenileyin veya sunucunun çalıştığından emin olun.');
+});
+
 // DOM Elementleri
 const nameSection = document.getElementById('nameSection');
 const playerNameInput = document.getElementById('playerNameInput');
 const errorToast = document.getElementById('errorToast');
 const joinGameBtn = document.getElementById('joinGameBtn');
 const teamModeToggle = document.getElementById('teamModeToggle');
+const stackingModeToggle = document.getElementById('stackingModeToggle');
+const penaltyModeToggle = document.getElementById('penaltyModeToggle');
 
 let playerName = '';
 let selectedAvatar = 'alibicim.png';
+let selectedIstaka = 'istaka.jpg';
 
 // Avatar seçimi
 const avatarOptions = document.querySelectorAll('.avatar-option');
@@ -18,6 +30,17 @@ avatarOptions.forEach(option => {
         avatarOptions.forEach(o => o.classList.remove('selected'));
         option.classList.add('selected');
         selectedAvatar = option.dataset.avatar;
+        playSound('click');
+    });
+});
+
+// Istaka renk seçimi
+const istakaOptions = document.querySelectorAll('.istaka-option');
+istakaOptions.forEach(option => {
+    option.addEventListener('click', () => {
+        istakaOptions.forEach(o => o.classList.remove('selected'));
+        option.classList.add('selected');
+        selectedIstaka = option.dataset.istaka;
         playSound('click');
     });
 });
@@ -94,10 +117,23 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // Kaydedilmiş istaka seçimi
+    const savedIstaka = localStorage.getItem('okeyPlayerIstaka');
+    if (savedIstaka) {
+        selectedIstaka = savedIstaka;
+        istakaOptions.forEach(o => {
+            o.classList.remove('selected');
+            if (o.dataset.istaka === savedIstaka) {
+                o.classList.add('selected');
+            }
+        });
+    }
 });
 
 // Oyuna katıl butonuna tıklama
 joinGameBtn.addEventListener('click', () => {
+    console.log('Join button clicked');
     playSound('click');
 
     // İsim input'tan al
@@ -110,15 +146,21 @@ joinGameBtn.addEventListener('click', () => {
         playerName = sessionStorage.getItem('okeyPlayerId') || generatePlayerId();
     }
 
-    // Avatar'ı kaydet
+    // Avatar ve istaka'yı kaydet
     localStorage.setItem('okeyPlayerAvatar', selectedAvatar);
+    localStorage.setItem('okeyPlayerIstaka', selectedIstaka);
+    sessionStorage.setItem('selectedIstaka', selectedIstaka);
 
-    const teamMode = teamModeToggle.checked;
+    const teamMode = teamModeToggle ? teamModeToggle.checked : false;
+    const stackingMode = stackingModeToggle ? stackingModeToggle.checked : false;
+    const penaltyMode = penaltyModeToggle ? penaltyModeToggle.checked : false;
 
     // Direkt sabit odaya katıl
     socket.emit('joinGame', {
         playerName,
         teamMode,
+        stackingMode,
+        penaltyMode,
         avatar: selectedAvatar
     });
 });

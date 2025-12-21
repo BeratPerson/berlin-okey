@@ -140,6 +140,22 @@
                         <span class="area-label">Atılan</span>
                     </div>
                 </div>
+
+                <!-- Açık Taşlar Masası (Tüm Oyuncuların Açtıkları) -->
+                <div id="openedTilesTable" class="opened-tiles-table">
+                    <div id="openedTop" class="opened-player-area top" data-player="top">
+                        <!-- Üst oyuncunun açtıkları -->
+                    </div>
+                    <div id="openedLeft" class="opened-player-area left" data-player="left">
+                        <!-- Sol oyuncunun açtıkları -->
+                    </div>
+                    <div id="openedRight" class="opened-player-area right" data-player="right">
+                        <!-- Sağ oyuncunun açtıkları -->
+                    </div>
+                    <div id="openedBottom" class="opened-player-area bottom" data-player="bottom">
+                        <!-- Alt oyuncunun (sen) açtıkları -->
+                    </div>
+                </div>
             </div>
 
             <!-- Üst Rakip (Top) -->
@@ -204,6 +220,14 @@
 
             <!-- Alt Oyuncu (Kullanıcı) ve Istaka -->
             <div class="player-area bottom">
+                <!-- Sol Atık (Çekebileceğim) -->
+                <div class="player-discard left-discard" id="myLeftDiscard">
+                    <div class="discard-label">⬅ Çek</div>
+                    <div class="discard-tiles" id="leftDiscardTiles">
+                        <!-- Soldaki oyuncunun attıkları -->
+                    </div>
+                </div>
+
                 <!-- Istaka Yapısı -->
                 <div class="cue-container">
                     <div class="cue-wood">
@@ -215,6 +239,14 @@
                         <div id="playerHandBottom" class="cue-row bottom-row" data-row="1">
                             <!-- Taşlar buraya -->
                         </div>
+                    </div>
+                </div>
+
+                <!-- Sağ Atık (Attıklarım) -->
+                <div class="player-discard right-discard" id="myRightDiscard">
+                    <div class="discard-label">At ➡</div>
+                    <div class="discard-tiles" id="rightDiscardTiles">
+                        <!-- Benim attıklarım -->
                     </div>
                 </div>
 
@@ -237,7 +269,23 @@
             <button id="finishBtn" class="action-btn finish" disabled title="Oyunu Bitir">✨ Bitir</button>
         </div>
 
-        <!-- Açılmış Taşlar Paneli -->
+        <!-- 🍅 Domates Fırlatma Butonu -->
+        <button id="tomatoBtn" class="tomato-btn" title="Domates Fırlat!">
+            🍅
+            <span id="tomatoCounter" class="tomato-counter">3</span>
+        </button>
+
+        <!-- Domates Hedef Seçimi -->
+        <div id="tomatoSelectOverlay" class="tomato-select-overlay hidden">
+            <div class="tomato-select-panel">
+                <h3>🍅 Domates Fırlat!</h3>
+                <p>Kime fırlatmak istiyorsun?</p>
+                <div id="targetButtons" class="target-buttons">
+                    <!-- Hedefler JS ile doldurulacak -->
+                </div>
+                <button id="cancelThrowBtn" class="cancel-throw-btn">Vazgeç</button>
+            </div>
+        </div>
         <div id="openedTilesPanel" class="opened-tiles-panel hidden">
             <h4>📖 Açılmış Taşlar</h4>
             <div id="openedTilesList" class="opened-tiles-list">

@@ -175,7 +175,12 @@ class GameLogic {
         }
 
         this.lastDrawnFromDiscard = true;
-        return previousPile.pop();
+
+        // Yerden çekilen taşı kaydet (açarken kontrol için)
+        const drawnTile = previousPile.pop();
+        state.drawnFromDiscardTile = drawnTile; // Bu taş kullanılmalı!
+
+        return drawnTile;
     }
 
     // Soldaki oyuncunun atık alanında taş var mı?
@@ -253,6 +258,7 @@ class GameLogic {
     // ============================================
 
     // Seri kontrolü (aynı renk, ardışık sayılar)
+    // NOT: 101 Okey'de 12-13-1 geçişi GEÇERSİZ!
     isValidSequence(tiles) {
         if (tiles.length < 3) return false;
 
@@ -271,13 +277,7 @@ class GameLogic {
         // Joker sayısı
         let okeyCount = tiles.length - nonOkeys.length;
 
-        // 13-1 geçişi kontrolü
-        if (numbers.includes(1)) {
-            if (this.checkConsecutive(numbers, okeyCount)) return true;
-            const highNumbers = numbers.map(n => n === 1 ? 14 : n).sort((a, b) => a - b);
-            return this.checkConsecutive(highNumbers, okeyCount);
-        }
-
+        // 101 Okey'de 12-13-1 geçişi YOK - sadece normal ardışık kontrol
         return this.checkConsecutive(numbers, okeyCount);
     }
 
@@ -720,8 +720,19 @@ class GameLogic {
                 }
             } else {
                 // El açılmış - kalan taşların toplamı
+                let hasOkeyInHand = false;
                 for (const tile of this.playerTiles[i]) {
                     penalty += this.getTilePenalty(tile);
+                    // Elde okey var mı?
+                    if (this.isOkey(tile)) {
+                        hasOkeyInHand = true;
+                    }
+                }
+
+                // OKEY ELDE KALMA CEZASI: +101 ekstra
+                if (hasOkeyInHand) {
+                    penalty += 101;
+                    Logger.warning(`⚠️ Oyuncu ${i} elinde okey ile kaldı! +101 ekstra ceza`);
                 }
 
                 // Çarpan (okey ile bitiş = 2x, elden bitiş = 2x)

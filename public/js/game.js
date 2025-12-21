@@ -1,6 +1,24 @@
 // 101 Okey - Oyun JavaScript
 const socket = io();
 
+// Touch vs Mouse detection - only use touch events on real touch devices
+window.actuallyUsingTouch = false;
+document.addEventListener('touchstart', function onFirstTouch() {
+    window.actuallyUsingTouch = true;
+    // Remove listener after first touch detected
+    document.removeEventListener('touchstart', onFirstTouch);
+    console.log('Touch mode activated');
+}, { passive: true });
+
+// Audio Context Resume for Autoplay Policy
+document.addEventListener('click', () => {
+    const ctx = getAudioContext();
+    if (ctx.state === 'suspended') {
+        ctx.resume().then(() => {
+            console.log('AudioContext resumed successfully');
+        });
+    }
+}, { once: true });
 // Oyun Durumu
 let gameState = {
     tiles: [],
@@ -12,8 +30,38 @@ let gameState = {
     teamMode: false,
     scores: {},
     selectedTile: null,
-    hasDrawn: false
+    hasDrawn: false,
+
+    // Slot Sistemi (2 sıra x 13 = 26 slot)
+    // Her slot ya null'dır ya da bir taş objesi barındırır.
+    slots: new Array(26).fill(null)
 };
+
+const SLOT_COUNT = 26;
+const SLOTS_PER_ROW = 13;
+
+// Slot Senkronizasyonu (Sparse -> Dense)
+function syncTilesFromSlots() {
+    gameState.tiles = gameState.slots.filter(t => t !== null);
+    // Sunucuya sıralama değişikliğini bildir
+    socket.emit('sortTiles', { tiles: gameState.tiles });
+}
+
+// Slot Drop Eventleri
+function setupSlotDropEvents(slotEl, slotIndex) {
+    slotEl.addEventListener('dragover', (e) => {
+        e.preventDefault(); // Drop'a izin ver
+        e.dataTransfer.dropEffect = 'move';
+        slotEl.classList.add('drag-over');
+    });
+
+    slotEl.addEventListener('dragleave', () => {
+        slotEl.classList.remove('drag-over');
+    });
+
+    // Drop işi global onMouseUp ile yapılıyor ama görsel feedback için bu eventler yararlı.
+    // Asıl logic moveTileInSlot fonksiyonunda olacak.
+}
 
 // Sprite sheet koordinatları
 const SPRITE_MAP = {
@@ -136,6 +184,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Veri yoksa ana sayfaya yönlendir
         window.location.href = '/';
     }
+
+    // Seçilen istaka rengini uygula
+    applySelectedIstaka();
 });
 
 // Lobi ekranını göster
@@ -164,6 +215,20 @@ function hideLobby() {
 
     lobbyOverlay.classList.add('hidden');
     gameContainer.classList.remove('hidden');
+}
+
+// Seçilen istaka rengini uygula
+function applySelectedIstaka() {
+    // Önce sessionStorage, sonra localStorage'dan al
+    let selectedIstaka = sessionStorage.getItem('selectedIstaka')
+        || localStorage.getItem('okeyPlayerIstaka')
+        || 'istaka.jpg';
+
+    const cueWood = document.querySelector('.cue-wood');
+    if (cueWood) {
+        cueWood.style.backgroundImage = `url('/asset/${selectedIstaka}')`;
+        console.log('Istaka rengi uygulandı:', selectedIstaka);
+    }
 }
 
 // Lobi oyuncu listesini güncelle
@@ -285,6 +350,35 @@ function initializeGame(data) {
     if (gameState.playerIndex === gameState.currentPlayer) {
         gameState.hasDrawn = true;
     }
+
+    // Slotları initialize et (sıralı diz) - Sadece BOŞSA!
+    // Eğer hali hazırda slotlarda taş varsa (reconnect veya update durumunda) koru
+    const hasSlots = gameState.slots && gameState.slots.some(s => s !== null);
+    if (!hasSlots) {
+        initializeSlotsFromTiles();
+    }
+    renderPlayerHand();
+}
+
+// Mevcut taşları (dense) slotlara (sparse) dağıt
+function initializeSlotsFromTiles() {
+    // Önce temizle
+    gameState.slots.fill(null);
+
+    // Taşları sırayla yerleştir
+    gameState.tiles.forEach((tile, i) => {
+        if (i < SLOT_COUNT) {
+            gameState.slots[i] = tile;
+        }
+    });
+}
+
+function syncTilesFromSlots() {
+    // Slotlardaki (sparse) taşları, dense array'e (gameState.tiles) aktar
+    gameState.tiles = gameState.slots.filter(tile => tile !== null);
+
+    // Server'ı yeni sıralama hakkında bilgilendir (Drag-and-drop sonrası)
+    socket.emit('sortTiles', { tiles: gameState.tiles });
 }
 
 // Gösterge ve Okey gösterimi
@@ -306,36 +400,85 @@ function createMiniTileHTML(tile) {
     return `<span class="mini-tile-inner ${colorClass}">${tile.number}</span>`;
 }
 
-// Her oyuncunun atık alanını güncelle
-function updateDiscardDisplay(playerIndex, tile) {
-    // Oyuncunun ekrandaki konumunu bul
-    const relativePos = (playerIndex - gameState.playerIndex + 4) % 4;
-    const positionMap = { 0: 'bottom', 1: 'right', 2: 'top', 3: 'left' };
-    const position = positionMap[relativePos];
+// Kendi atık alanlarımız
+const leftDiscardTiles = document.getElementById('leftDiscardTiles');
+const rightDiscardTiles = document.getElementById('rightDiscardTiles');
 
-    // Bu oyuncu BİZSEK, attığımız taş sağımıza gidiyor (discardPile = sağ taraf)
-    // BAŞKASIYSA, onun atık alanına
-    if (relativePos === 0) {
-        // Biz attık - sağ tarafa (rightDiscard) göster
-        // Şimdilik merkezdeki discardPile'ı kullan
-        discardPile.innerHTML = createMiniTileHTML(tile);
-    } else {
-        // Başka oyuncu attı - onun konumunda göster
-        // Şimdilik sadece log
-        console.log(`${position} oyuncu taş attı:`, tile);
+// Kendi attığımız taşı sağ tarafa göster (SADECE SON ATILAN)
+function addToMyDiscards(tile) {
+    if (!rightDiscardTiles) return;
+
+    // Öncekini temizle, sadece son atılan görünsün
+    rightDiscardTiles.innerHTML = '';
+
+    if (tile) {
+        const miniTile = document.createElement('div');
+        miniTile.className = 'mini-tile';
+        miniTile.innerHTML = createMiniTileHTML(tile);
+        rightDiscardTiles.appendChild(miniTile);
     }
 }
 
-// Solumuzdan çekebileceğimiz taşı göster (önceki oyuncunun attığı)
-function updateLeftDiscardDisplay(tile) {
-    // Merkezdeki discardPile'ı "çekebileceğimiz" taş olarak kullan
+// Solumuzdan çekebileceğimiz taşı güncelle (SADECE SON ATILAN)
+function updateLeftDiscard(tile) {
+    if (!leftDiscardTiles) return;
+
+    // Öncekini temizle, sadece son atılan görünsün
+    leftDiscardTiles.innerHTML = '';
+
     if (tile) {
-        discardPile.innerHTML = createMiniTileHTML(tile);
-        discardPile.classList.add('has-tile');
-    } else {
-        discardPile.innerHTML = '';
-        discardPile.classList.remove('has-tile');
+        const miniTile = document.createElement('div');
+        miniTile.className = 'mini-tile drawable';
+        miniTile.innerHTML = createMiniTileHTML(tile);
+        leftDiscardTiles.appendChild(miniTile);
+
+        // DRAG STARTED FOR LEFT DISCARD TILE
+        // Index -100 indicates Left Discard source
+        miniTile.addEventListener('mousedown', (e) => {
+            if (gameState.currentPlayer === gameState.playerIndex && !gameState.hasDrawn) {
+                // Sürükleme başlat, ama görsel olarak biraz farklı olabilir (boyut vs)
+                // Şimdilik standart drag sistemi
+                // Bir tile-sprite gibi görünmesini sağlamak için kopyalarken stil verebiliriz.
+                startMouseDrag(e, -100, miniTile);
+            }
+        });
+
+        // Tıklanabilir yap (Fallback)
+        miniTile.onclick = () => {
+            if (isDragging) return; // Drag bitişi click gibi algılanmasın
+
+            if (gameState.currentPlayer !== gameState.playerIndex) {
+                showToast('Sıra sizde değil!', 'error');
+                return;
+            }
+            if (gameState.hasDrawn) {
+                showToast('Zaten taş çektiniz!', 'error');
+                return;
+            }
+            socket.emit('drawTile', { fromDiscard: true });
+        };
     }
+}
+
+// Atık alanlarını temizle (yeni el için)
+function clearDiscardAreas() {
+    if (leftDiscardTiles) leftDiscardTiles.innerHTML = '';
+    if (rightDiscardTiles) rightDiscardTiles.innerHTML = '';
+}
+
+// Legacy fonksiyonlar (eski kod uyumluluğu için)
+function updateDiscardDisplay(playerIndex, tile) {
+    const relativePos = (playerIndex - gameState.playerIndex + 4) % 4;
+
+    if (relativePos === 0) {
+        // Biz attık - sağda göster
+        addToMyDiscards(tile);
+    }
+    // Diğer oyuncuların atıkları şimdilik merkez alanda görünür
+}
+
+function updateLeftDiscardDisplay(tile) {
+    updateLeftDiscard(tile);
 }
 
 // Oyuncuları göster
@@ -359,6 +502,8 @@ function updatePlayersDisplay() {
     gameState.players.forEach((player, index) => {
         const relativePos = (index - gameState.playerIndex + 4) % 4;
         const displayPos = positionMap[relativePos];
+
+        console.log(`[DEBUG] Rendering Player: ${player.name} (Index: ${index}) at ${displayPos}`);
 
         const nameEl = document.getElementById(`${displayPos}PlayerName`);
         const countEl = document.getElementById(`${displayPos}TileCount`);
@@ -422,26 +567,47 @@ function renderPlayerHand() {
     if (topRow) topRow.innerHTML = '';
     if (bottomRow) bottomRow.innerHTML = '';
 
-    // Taşları sıralara dağıt (Maksimum 11 taş üstte)
-    // Eğer taş sayısı çoksa veya sürükle bırak yaparken taşın sırasını korumak için
-    // basit bir bölme mantığı kullanıyoruz.
-    const splitIndex = 11; // Üst sıra kapasitesi
+    // Slotları render et (0-12 üst, 13-25 alt)
+    console.log('Rendering Hand. Slots:', gameState.slots?.length, 'Tiles:', gameState.tiles?.length);
 
-    gameState.tiles.forEach((tile, index) => {
-        const tileEl = createTileElement(tile, index);
+    // Safety check: if slots are empty but tiles exist, re-init
+    if ((!gameState.slots || gameState.slots.every(s => s === null)) && gameState.tiles && gameState.tiles.length > 0) {
+        console.warn('Slots empty but tiles exist. Forcing initialization.');
+        initializeSlotsFromTiles();
+    }
 
-        if (index < splitIndex) {
-            if (topRow) topRow.appendChild(tileEl);
-        } else {
-            if (bottomRow) bottomRow.appendChild(tileEl);
+    for (let i = 0; i < SLOT_COUNT; i++) {
+        const slotEl = document.createElement('div');
+        slotEl.className = 'tile-slot';
+        slotEl.dataset.slotIndex = i;
+
+        // Slot'a drop eventleri ekle
+        setupSlotDropEvents(slotEl, i);
+
+        const tile = gameState.slots ? gameState.slots[i] : null;
+        if (tile) {
+            // Index argümanı tile için artık önemsiz ama fonksiyon imzasını koruyalım
+            const tileEl = createTileElement(tile, i);
+            slotEl.appendChild(tileEl);
         }
-    });
 
-    // Taş sayısını güncelle
+        if (i < SLOTS_PER_ROW) {
+            if (topRow) topRow.appendChild(slotEl);
+        } else {
+            if (bottomRow) bottomRow.appendChild(slotEl);
+        }
+    }
+
+    // Taş sayısını güncelle (Boş olmayan slot sayısı)
+    const validTileCount = gameState.slots.filter(t => t !== null).length;
     const countBadge = document.getElementById('bottomTileCount');
-    if (countBadge) countBadge.textContent = gameState.tiles.length;
+    if (countBadge) countBadge.textContent = validTileCount;
 
     // Otomatik grup analizi ve puan gösterimi
+    // Analiz için tekrar dense array (boşluksuz) oluşturup ona bakmalıyız
+    // VEYA analiz fonksiyonunu slotları anlayacak şekilde güncellemeliyiz.
+    // Şimdilik dense array senkronizasyonu yapalım.
+    syncTilesFromSlots();
     const analysis = analyzeHandGroups();
     updateAutoScoreDisplay(analysis);
 
@@ -458,9 +624,11 @@ function renderPlayerHand() {
         }
     }
 
-    // Bitir butonu kontrolü
+    // Bitir butonu kontrolü - 101 Okey'de bitirmek için 1 taş kalmalı
     if (finishBtn) {
-        finishBtn.disabled = gameState.tiles.length !== 14 || !gameState.hasDrawn || gameState.currentPlayer !== gameState.playerIndex;
+        // El açmış ve 1 taş kalmış olmalı
+        const canFinish = gameState.hasOpened && gameState.tiles.length === 1 && gameState.hasDrawn && gameState.currentPlayer === gameState.playerIndex;
+        finishBtn.disabled = !canFinish;
     }
 
     // Istaka zeminlerine de drop event ekle (boş alana bırakma için)
@@ -579,55 +747,365 @@ function updateAutoScoreDisplay(analysis) {
 }
 
 // ============================================
-// 🔄 DRAG & DROP (Taş Sıralama)
+// 🔄 DRAG & DROP (Taş Sıralama) - Custom Mouse System
 // ============================================
 
+// Global Drag Variables
 let draggedIndex = null;
+let draggedElement = null; // The original element
+let dragGhost = null;      // The cloned visual element
+let isDragging = false;
+let dragStartX = 0;
+let dragStartY = 0;
+let dragOffsetX = 0;       // Mouse offset from tile top-left
+let dragOffsetY = 0;
+let dragThreshold = 5;
 
-function handleDragStart(e, index) {
+function startMouseDrag(e, index, el) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+
     draggedIndex = index;
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', index);
-    e.target.classList.add('dragging');
+    draggedElement = el;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+
+    // Calculate offset so we grab the tile exactly where clicked
+    const rect = el.getBoundingClientRect();
+    dragOffsetX = e.clientX - rect.left;
+    dragOffsetY = e.clientY - rect.top;
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+}
+
+function onMouseMove(e) {
+    if (!draggedElement) return;
+
+    const deltaX = e.clientX - dragStartX;
+    const deltaY = e.clientY - dragStartY;
+
+    // Start dragging threshold
+    if (!isDragging && (Math.abs(deltaX) > dragThreshold || Math.abs(deltaY) > dragThreshold)) {
+        isDragging = true;
+
+        // Create Ghost Element
+        dragGhost = draggedElement.cloneNode(true);
+        dragGhost.classList.add('dragging-ghost');
+
+        // Style the ghost
+        dragGhost.style.position = 'fixed';
+        dragGhost.style.zIndex = '9999';
+        dragGhost.style.pointerEvents = 'none'; // Clicks pass through to elements below
+        dragGhost.style.width = '50px';   // Enforce size
+        dragGhost.style.height = '70px';
+        dragGhost.style.boxShadow = '0 10px 25px rgba(0,0,0,0.5)';
+        dragGhost.style.transform = 'scale(1.1)';
+        dragGhost.style.transition = 'none'; // No transition delay during drag
+
+        // Append to BODY to escape any CSS transforms/overflows
+        document.body.appendChild(dragGhost);
+
+        // Hide original element
+        draggedElement.style.opacity = '0';
+    }
+
+    if (isDragging && dragGhost) {
+        // Position ghost at mouse - offset
+        // Using Fixed position relative to viewport
+        const x = e.clientX - dragOffsetX;
+        const y = e.clientY - dragOffsetY;
+
+        dragGhost.style.left = `${x}px`;
+        dragGhost.style.top = `${y}px`;
+    }
+}
+
+function onMouseUp(e) {
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+
+    if (!isDragging) {
+        // Was just a click
+        if (draggedElement) {
+            // Click logic handled mainly by click listeners on tiles logic
+        }
+    } else {
+        // Drag ended
+        const elements = document.elementsFromPoint(e.clientX, e.clientY);
+        let targetSlotIndex = null;
+        let droppedOnRightDiscard = false;
+
+        console.log('Drop Check:', elements.length, 'elements found');
+
+        for (const el of elements) {
+            // Ignore ghost or self
+            if (el.classList.contains('dragging-ghost') || (draggedElement && el === draggedElement)) continue;
+
+            // 1. Check for drop on Right Discard (Throw)
+            if (el.matches('.right-discard') || el.closest('.right-discard') || el.id === 'rightDiscardTiles') {
+                droppedOnRightDiscard = true;
+                break;
+            }
+
+            // 2. Check for drop on Slot
+            const slotEl = el.closest('.tile-slot');
+            if (slotEl) {
+                const idx = parseInt(slotEl.dataset.slotIndex);
+                if (!isNaN(idx)) {
+                    targetSlotIndex = idx;
+                    // console.log('Found valid slot:', targetSlotIndex);
+                    break; // Found valid slot
+                }
+            }
+        }
+
+        if (droppedOnRightDiscard) {
+            // THROW ACTION
+            if (draggedIndex >= 0 && draggedIndex < SLOT_COUNT) {
+                // Istakadan atılmış
+                const tileToThrow = gameState.slots[draggedIndex];
+                if (tileToThrow) {
+                    // GameState.tiles arrayindeki indexini bul (çünkü server index bekliyor)
+                    // NOT: syncTilesFromSlots en son yapılmış olmalı veya şimdi yapmalıyız
+                    // ama burada tile object referansı üzerinden bulmak daha güvenli.
+                    const tileIndex = gameState.tiles.indexOf(tileToThrow);
+
+                    if (tileIndex !== -1) {
+                        console.log('Discarding tile:', tileToThrow, 'Index:', tileIndex);
+                        socket.emit('discardTile', { tileIndex: tileIndex });
+                    } else {
+                        console.error('Tile to discard not found in gameState.tiles');
+                        // Fallback: belki senkronize değil, önce senkronize edip tekrar dene
+                        syncTilesFromSlots();
+                        const retryIndex = gameState.tiles.indexOf(tileToThrow);
+                        if (retryIndex !== -1) {
+                            socket.emit('discardTile', { tileIndex: retryIndex });
+                        }
+                    }
+                }
+            }
+        } else if (targetSlotIndex !== null) {
+            // SLOT DROP
+            if (draggedIndex === -100) {
+                // DRAW ACTION (Sol cepten ıstakaya)
+                console.log('Dropping from LEFT DISCARD to rack');
+                socket.emit('drawTile', { fromDiscard: true });
+                // Note: Server cevabı gelince slotlar dolacak, burada manual update yapmaya gerek yok
+            } else {
+                // MOVE ACTION (Istaka içi yer değişimi)
+                console.log(`Attempting move: ${draggedIndex} -> ${targetSlotIndex}`);
+                moveTileInSlot(draggedIndex, targetSlotIndex);
+            }
+        } else {
+            console.log('No valid slot target found. DraggedIndex:', draggedIndex);
+        }
+    }
+
+    // Cleanup
+    if (dragGhost) {
+        dragGhost.remove();
+        dragGhost = null;
+    }
+
+    if (draggedElement) {
+        draggedElement.style.opacity = '';
+        draggedElement.classList.remove('dragging');
+    }
+
+    isDragging = false;
+    draggedIndex = null;
+    draggedElement = null;
+}
+
+// Eski native drag handler'ları (artık kullanılmıyor ama uyumluluk için)
+// Eski native drag handler'ları (artık kullanılmıyor ama uyumluluk için)
+function handleDragStart(e, index) {
+    // Custom sistem kullanıldığı için boş
+}
+
+// Legacy moveTile wrapper for touch compatibility
+function moveTile(fromIndex, toIndex) {
+    // Convert dense indices (0-21) to slot indices (0-25)
+    // This is tricky because we need to find WHERE the Nth tile is.
+    if (!gameState.slots) return;
+
+    let currentTileCount = -1;
+    let fromSlot = -1;
+    let toSlot = -1;
+
+    // Find fromSlot
+    for (let i = 0; i < gameState.slots.length; i++) {
+        if (gameState.slots[i]) currentTileCount++;
+        if (currentTileCount === fromIndex) {
+            fromSlot = i;
+            break;
+        }
+    }
+
+    // Find toSlot (approximate)
+    // For target, we might want the Nth empty slot? No, the user dropped on the Nth tile position.
+    // If toIndex is "end", it means last slot.
+    if (toIndex >= gameState.tiles.length) {
+        // Drop at end
+        // Find last filled slot + 1 (or first empty after last filled)
+        for (let i = gameState.slots.length - 1; i >= 0; i--) {
+            if (gameState.slots[i]) {
+                toSlot = i + 1; // Put after last tile
+                break;
+            }
+        }
+        if (toSlot === -1) toSlot = 0; // Hand was empty
+        if (toSlot >= SLOT_COUNT) toSlot = SLOT_COUNT - 1; // Full
+    } else {
+        // Drop on specific tile
+        currentTileCount = -1;
+        for (let i = 0; i < gameState.slots.length; i++) {
+            if (gameState.slots[i]) currentTileCount++;
+            if (currentTileCount === toIndex) {
+                toSlot = i;
+                break;
+            }
+        }
+    }
+
+    if (fromSlot !== -1 && toSlot !== -1) {
+        moveTileInSlot(fromSlot, toSlot);
+    }
 }
 
 function handleDragOver(e) {
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
 }
 
 function handleDrop(e, targetIndex) {
     e.preventDefault();
-    e.stopPropagation();
-
-    if (draggedIndex === null || draggedIndex === targetIndex) return;
-
-    moveTile(draggedIndex, targetIndex);
 }
 
 function handleDragEnd(e) {
-    e.target.classList.remove('dragging');
+    // Custom sistem kullanıldığı için boş
+}
+
+// Taşı bir slottan diğerine taşı (sürükle-bırak için)
+function moveTileInSlot(fromSlot, toSlot) {
+    if (fromSlot === toSlot) return;
+    if (fromSlot < 0 || fromSlot >= SLOT_COUNT) return;
+    if (toSlot < 0 || toSlot >= SLOT_COUNT) return;
+
+    // Hedef boşsa direk taşı
+    if (gameState.slots[toSlot] === null) {
+        gameState.slots[toSlot] = gameState.slots[fromSlot];
+        gameState.slots[fromSlot] = null;
+    } else {
+        // Hedef doluysa ARAYA EKLE (Shift Right)
+        // İstediğimiz: fromSlot'taki taşı al, toSlot'a koy.
+        // toSlot'taki ve sonrasındaki (bitişik) taşları 1 sağa kaydır.
+
+        // 1. Kaydırma mümkün mü? (Sağda boşluk var mı?)
+        // Bu satırın sonuna kadar bak. (0-12 arası veya 13-25 arası)
+        const rowStart = Math.floor(toSlot / SLOTS_PER_ROW) * SLOTS_PER_ROW;
+        const rowEnd = rowStart + SLOTS_PER_ROW - 1;
+
+        // Kaydırılacak bloğu bul (toSlot'tan başlayıp ilk boşluğa kadar)
+        let emptySlotIndex = -1;
+        for (let i = toSlot; i <= rowEnd; i++) {
+            if (gameState.slots[i] === null) {
+                emptySlotIndex = i;
+                break;
+            }
+        }
+
+        if (emptySlotIndex !== -1) {
+            // Boşluk bulundu, shift yapabiliriz
+            const movingTile = gameState.slots[fromSlot];
+
+            // fromSlot'u önce temizle
+            gameState.slots[fromSlot] = null;
+
+            // Shift Right Loop: emptySlotIndex'ten toSlot'a kadar geriye doğru gel
+            // Örnek: toSlot=2, empty=4. 4=3, 3=2, 2=Moving.
+            for (let j = emptySlotIndex; j > toSlot; j--) {
+                gameState.slots[j] = gameState.slots[j - 1];
+            }
+
+            gameState.slots[toSlot] = movingTile;
+        } else {
+            // Boşluk yoksa işlem yapma
+            console.warn('No empty slot to shift right');
+            return;
+        }
+    }
+
+    renderPlayerHand();
+    playSound('tile-drop');
+}
+
+// ============================================
+// 📱 TOUCH DRAG & DROP (Mobile)
+// ============================================
+
+let touchDraggedEl = null;
+let touchStartX = 0;
+let touchStartY = 0;
+let touchOriginalLeft = 0;
+let touchOriginalTop = 0;
+
+function touchDragStart(e, index, el) {
+    draggedIndex = index;
+    touchDraggedEl = el;
+
+    const touch = e.touches[0];
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+
+    const rect = el.getBoundingClientRect();
+    touchOriginalLeft = rect.left;
+    touchOriginalTop = rect.top;
+
+    el.classList.add('dragging');
+    el.style.position = 'fixed';
+    el.style.zIndex = '1000';
+    el.style.left = rect.left + 'px';
+    el.style.top = rect.top + 'px';
+}
+
+function touchDragMove(e, el) {
+    if (!touchDraggedEl) return;
+
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - touchStartX;
+    const deltaY = touch.clientY - touchStartY;
+
+    el.style.left = (touchOriginalLeft + deltaX) + 'px';
+    el.style.top = (touchOriginalTop + deltaY) + 'px';
+}
+
+function touchDragEnd(e, fromIndex) {
+    if (!touchDraggedEl) return;
+
+    // Pozisyonu sıfırla
+    touchDraggedEl.style.position = '';
+    touchDraggedEl.style.zIndex = '';
+    touchDraggedEl.style.left = '';
+    touchDraggedEl.style.top = '';
+    touchDraggedEl.classList.remove('dragging');
+
+    // Hedef taşı bul
+    const touch = e.changedTouches[0];
+    const elementAtPoint = document.elementFromPoint(touch.clientX, touch.clientY);
+    const targetTile = elementAtPoint?.closest('.tile-sprite');
+
+    if (targetTile && targetTile !== touchDraggedEl) {
+        const targetIndex = parseInt(targetTile.dataset.index);
+        if (!isNaN(targetIndex) && targetIndex !== fromIndex) {
+            moveTile(fromIndex, targetIndex);
+        }
+    }
+
+    touchDraggedEl = null;
     draggedIndex = null;
 }
 
-// Taşı bir konumdan diğerine taşı
-function moveTile(fromIndex, toIndex) {
-    if (fromIndex === toIndex) return;
-
-    const tile = gameState.tiles.splice(fromIndex, 1)[0];
-
-    // Eğer fromIndex < toIndex ise, splice sonrası index bir azalır
-    if (fromIndex < toIndex) {
-        toIndex--;
-    }
-
-    gameState.tiles.splice(toIndex, 0, tile);
-
-    renderPlayerHand();
-
-    // Sunucuya sıralama değişikliğini bildir
-    socket.emit('sortTiles', { tiles: gameState.tiles });
-}
 
 function setupCueDropZones(rows) {
     rows.forEach(row => {
@@ -678,10 +1156,10 @@ function createTileElement(tile, index) {
     tileEl.dataset.index = index;
     tileEl.dataset.tileId = tile.id;
 
-    // Sabit boyutlar - sprite rendering için gerekli
-    tileEl.style.width = '70px';
-    tileEl.style.height = '100px';
-    tileEl.style.backgroundSize = '910px 500px';
+    // Sabit boyutlar - sprite rendering için gerekli (%30 küçültüldü)
+    tileEl.style.width = '50px';
+    tileEl.style.height = '70px';
+    tileEl.style.backgroundSize = '650px 350px';
 
     const spriteInfo = SPRITE_MAP[tile.color];
 
@@ -693,11 +1171,11 @@ function createTileElement(tile, index) {
             xPos = 0;
             yPos = 0;
         } else {
-            // Her taş 70px genişliğinde (ölçekleme CSS'te yapılıyor)
-            xPos = (tile.number - 1) * 70;
+            // Her taş 50px genişliğinde (küçültülmüş)
+            xPos = (tile.number - 1) * 50;
 
-            // Satır yüksekliği 100px
-            yPos = (4 - spriteInfo.row) * 100;
+            // Satır yüksekliği 70px (küçültülmüş)
+            yPos = (4 - spriteInfo.row) * 70;
         }
 
         tileEl.style.backgroundPosition = `-${xPos}px -${yPos}px`;
@@ -708,15 +1186,45 @@ function createTileElement(tile, index) {
         tileEl.classList.add('okey');
     }
 
-    // Click event
-    tileEl.addEventListener('click', () => selectTile(index));
+    // Click event - only for selection, not drag
+    tileEl.addEventListener('click', (e) => {
+        // Click sadece drag olmadığında çalışır (isDragging kontrolü onMouseUp'ta)
+        if (!isDragging) {
+            console.log('Taş tıklandı:', index, tile);
+            selectTile(index);
+        }
+    });
 
-    // Drag & Drop
-    tileEl.draggable = true;
-    tileEl.addEventListener('dragstart', (e) => handleDragStart(e, index));
-    tileEl.addEventListener('dragover', handleDragOver);
-    tileEl.addEventListener('drop', (e) => handleDrop(e, index));
-    tileEl.addEventListener('dragend', handleDragEnd);
+    // Custom Mouse Drag System (Native drag yerine)
+    tileEl.addEventListener('mousedown', (e) => {
+        startMouseDrag(e, index, tileEl);
+    });
+
+    // Native drag'ı devre dışı bırak (custom sistem kullanıyoruz)
+    tileEl.draggable = false;
+    tileEl.addEventListener('dragstart', (e) => {
+        e.preventDefault(); // Native drag'ı engelle
+    });
+
+    // Touch Events - Only for ACTUAL touch devices
+    // Don't use touch events if this is a desktop/mouse - it interferes with native drag
+    // We detect actual touch by checking if a touch happened before rendering
+    if (window.actuallyUsingTouch) {
+        tileEl.addEventListener('touchstart', (e) => {
+            touchDragStart(e, index, tileEl);
+        }, { passive: true });
+
+        tileEl.addEventListener('touchmove', (e) => {
+            if (touchDraggedEl) {
+                e.preventDefault();
+            }
+            touchDragMove(e, tileEl);
+        }, { passive: false });
+
+        tileEl.addEventListener('touchend', (e) => {
+            touchDragEnd(e, index);
+        });
+    }
 
     return tileEl;
 }
@@ -1472,8 +1980,10 @@ socket.on('tileDiscarded', (data) => {
     }
 
     // Sırayı güncelle
+    console.log(`[DEBUG] Turn Change: Old=${gameState.currentPlayer}, New=${data.nextPlayer}, Me=${gameState.playerIndex}`);
     gameState.currentPlayer = data.nextPlayer;
     gameState.hasDrawn = false;
+    updateTurnIndicator(); // Force update UI immediately
 
     // Oyuncu taş sayılarını güncelle
     if (gameState.players[data.playerIndex]) {
@@ -1489,6 +1999,194 @@ socket.on('tileDiscarded', (data) => {
 socket.on('tilesSorted', (data) => {
     gameState.tiles = data.tiles;
     renderPlayerHand();
+});
+
+// ============================================
+// 📖 AÇIK TAŞLAR MASASI
+// ============================================
+
+// Açık grupları sakla
+if (!gameState.openedGroups) {
+    gameState.openedGroups = [[], [], [], []]; // Her oyuncu için
+}
+
+socket.on('handOpened', (data) => {
+    const { playerIndex, openedGroups, score, minimumOpenScore } = data;
+
+    // Bu oyuncunun açık gruplarını kaydet
+    if (!gameState.openedGroups) gameState.openedGroups = [[], [], [], []];
+    gameState.openedGroups[playerIndex] = openedGroups;
+
+    // Minimum açma skorunu güncelle (katlamalı mod için)
+    if (minimumOpenScore) {
+        gameState.minimumOpenScore = minimumOpenScore;
+    }
+
+    // Kendi elimizi güncelle (eğer taşlar çıkarıldıysa)
+    if (playerIndex === gameState.playerIndex && data.remainingTiles) {
+        gameState.tiles = data.remainingTiles;
+        gameState.hasOpened = true;
+        renderPlayerHand();
+    }
+
+    // Masadaki açık taşları render et
+    renderAllOpenedGroups();
+
+    showToast(`${data.playerName} el açtı: ${score} puan!`, 'success');
+    playSound('success');
+});
+
+// Tüm açık grupları render et
+function renderAllOpenedGroups() {
+    const positions = ['bottom', 'right', 'top', 'left'];
+
+    for (let i = 0; i < 4; i++) {
+        // Bu oyuncunun ekrandaki pozisyonu
+        const relativePos = (i - gameState.playerIndex + 4) % 4;
+        const position = positions[relativePos];
+
+        const areaEl = document.getElementById(`opened${position.charAt(0).toUpperCase() + position.slice(1)}`);
+        if (!areaEl) continue;
+
+        areaEl.innerHTML = '';
+
+        const groups = gameState.openedGroups[i] || [];
+        groups.forEach((group, groupIndex) => {
+            const groupEl = createOpenedGroupElement(group, i, groupIndex);
+            areaEl.appendChild(groupEl);
+        });
+    }
+}
+
+// Açık grup elementi oluştur
+function createOpenedGroupElement(tiles, playerIndex, groupIndex) {
+    const groupEl = document.createElement('div');
+    groupEl.className = 'opened-group';
+    groupEl.dataset.playerIndex = playerIndex;
+    groupEl.dataset.groupIndex = groupIndex;
+
+    // Sol taraf drop zone (seri başına ekleme)
+    const leftZone = document.createElement('div');
+    leftZone.className = 'drop-zone left-zone';
+    leftZone.dataset.position = 'left';
+    groupEl.appendChild(leftZone);
+
+    // Taşları ekle
+    tiles.forEach(tile => {
+        const tileEl = document.createElement('div');
+        tileEl.className = 'mini-tile';
+        tileEl.innerHTML = createMiniTileHTML(tile);
+        groupEl.appendChild(tileEl);
+    });
+
+    // Sağ taraf drop zone (seri sonuna ekleme)
+    const rightZone = document.createElement('div');
+    rightZone.className = 'drop-zone right-zone';
+    rightZone.dataset.position = 'right';
+    groupEl.appendChild(rightZone);
+
+    // Drop events
+    setupGroupDropEvents(groupEl, playerIndex, groupIndex);
+
+    return groupEl;
+}
+
+// Grup drop eventleri
+function setupGroupDropEvents(groupEl, playerIndex, groupIndex) {
+    groupEl.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        groupEl.classList.add('drag-over');
+    });
+
+    groupEl.addEventListener('dragleave', () => {
+        groupEl.classList.remove('drag-over');
+    });
+
+    groupEl.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        groupEl.classList.remove('drag-over');
+
+        if (draggedIndex === null) return;
+
+        // El açmış olmalıyız
+        if (!gameState.hasOpened) {
+            showToast('Önce el açmalısınız!', 'error');
+            return;
+        }
+
+        // Sıra bizde olmalı
+        if (gameState.currentPlayer !== gameState.playerIndex) {
+            showToast('Sıra sizde değil!', 'error');
+            return;
+        }
+
+        // Drop zone pozisyonu (sol/sağ)
+        const dropZone = e.target.closest('.drop-zone');
+        const position = dropZone ? dropZone.dataset.position : 'right';
+
+        // Taşı sunucuya gönder
+        socket.emit('addToGroup', {
+            tileIndex: draggedIndex,
+            targetPlayerIndex: playerIndex,
+            targetGroupIndex: groupIndex,
+            position: position
+        });
+
+        draggedIndex = null;
+    });
+}
+
+// Grup güncellendiğinde
+socket.on('groupUpdated', (data) => {
+    const { targetPlayerIndex, targetGroupIndex, group, addedTile, position } = data;
+
+    // Açık grupları güncelle
+    if (!gameState.openedGroups) gameState.openedGroups = [[], [], [], []];
+    if (!gameState.openedGroups[targetPlayerIndex]) gameState.openedGroups[targetPlayerIndex] = [];
+    gameState.openedGroups[targetPlayerIndex][targetGroupIndex] = group;
+
+    // Render et
+    renderAllOpenedGroups();
+
+    showToast(`Taş işlendi: ${addedTile.color} ${addedTile.number}`, 'info');
+});
+
+// Taşlar güncellendiğinde (taş işleme sonrası)
+socket.on('tilesUpdated', (data) => {
+    gameState.tiles = data.tiles;
+    renderPlayerHand();
+});
+
+// Çift açıldığında
+socket.on('pairsOpened', (data) => {
+    const { playerIndex, playerName, pairsCount } = data;
+
+    // Çiftleri açık gruplar olarak kaydet (her çift bir grup)
+    // Sunucudan çift bilgisi geldiğinde pairs formatında göster
+    if (!gameState.openedGroups) gameState.openedGroups = [[], [], [], []];
+
+    // Çift açma bilgisini kaydet (görsel için)
+    if (!gameState.pairsOpened) gameState.pairsOpened = {};
+    gameState.pairsOpened[playerIndex] = true;
+
+    showToast(`${playerName} çift açtı: ${pairsCount} çift!`, 'success');
+    playSound('success');
+
+    // Çiftleri göster (sunucudan gelen pairs bilgisiyle)
+    renderAllOpenedGroups();
+});
+
+// Ceza uygulandığında
+socket.on('penaltyApplied', (data) => {
+    const { playerName, reason, penalty, scores } = data;
+
+    showToast(`⚠️ ${playerName}: ${reason} (+${penalty} ceza)`, 'error');
+    playSound('error');
+
+    // Skorları güncelle
+    gameState.scores = scores;
+    updateScoreboard();
 });
 
 socket.on('gameFinished', (data) => {
@@ -1534,7 +2232,24 @@ socket.on('gameFinished', (data) => {
     }
 
     scoresHTML += '</div>';
+
+    // Yeni El butonu ekle
+    scoresHTML += `
+        <button id="newRoundBtn" class="btn btn-primary" style="margin-top: 20px; width: 100%;">
+            🔄 Yeni El Başlat
+        </button>
+    `;
+
     finalScores.innerHTML = scoresHTML;
+
+    // Yeni El butonuna tıklama
+    const newRoundBtn = document.getElementById('newRoundBtn');
+    if (newRoundBtn) {
+        newRoundBtn.addEventListener('click', () => {
+            socket.emit('newRound');
+            showToast('Yeni el başlatılıyor...', 'info');
+        });
+    }
 
     gameEndModal.classList.remove('hidden');
 });
@@ -1551,8 +2266,21 @@ socket.on('playerLeft', (data) => {
 });
 
 socket.on('error', (data) => {
+    console.error('[SERVER ERROR]', data.message);
     showToast(data.message, 'error');
     playSound('error');
+
+    // OTOMATİK DÜZELTME: Eğer "Sıra sizde değil" hatası alınırsa
+    // ve istemci sıranın kendisinde olduğunu sanıyorsa, senkronizasyon bozulmuştur.
+    // Odaya tekrar katılarak durumu düzeltmeye çalış.
+    if (data.message === 'Sıra sizde değil!') {
+        console.warn('⚠️ Senkronizasyon hatası tespit edildi! Otomatik düzeltme uygulanıyor...');
+        const playerName = sessionStorage.getItem('playerName');
+        if (playerName) {
+            showToast('Bağlantı yenileniyor...', 'info');
+            socket.emit('rejoinRoom', { playerName });
+        }
+    }
 });
 
 // Yardımcı fonksiyonlar

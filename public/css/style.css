@@ -108,9 +108,13 @@ body {
     justify-content: center;
     align-items: center;
     z-index: 10;
+    pointer-events: none;
+    /* Masadaki boşluklar tıklamayı engellemesin */
 }
 
 .center-content {
+    pointer-events: auto;
+    /* İçerik tıklanabilir olsun */
     display: flex;
     gap: 40px;
     align-items: center;
@@ -231,6 +235,48 @@ body {
     pointer-events: none;
 }
 
+/* === Parçacık Efekti (Floating Particles) === */
+.particles {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    /* KRİTİK: Tıklamaları engellememeli */
+    z-index: 1;
+}
+
+.particle {
+    position: absolute;
+    width: 5px;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+    animation: float 20s infinite linear;
+}
+
+@keyframes float {
+    0% {
+        transform: translateY(0) rotate(0deg);
+        opacity: 0;
+    }
+
+    20% {
+        opacity: 1;
+    }
+
+    80% {
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateY(-100vh) rotate(360deg);
+        opacity: 0;
+    }
+}
+
 /* Okey Taşı Özel Vurgusu */
 #okeyTile .tile-sprite,
 #okeyTile .tile-placeholder {
@@ -249,7 +295,8 @@ body {
     height: 100%;
     pointer-events: none;
     /* Tıklamaları alta geçir */
-    z-index: 100;
+    z-index: 90;
+    /* Taşların (z-index: 100+) altında kalsın */
     padding: 24px;
     display: flex;
     justify-content: space-between;
@@ -413,6 +460,113 @@ body {
 }
 
 /* ============================================
+   Açık Taşlar Masası (Opened Tiles Table)
+   ============================================ */
+
+.opened-tiles-table {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 500px;
+    height: 300px;
+    pointer-events: none;
+    z-index: 3;
+}
+
+.opened-player-area {
+    position: absolute;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 5px;
+    pointer-events: auto;
+    max-width: 400px;
+}
+
+.opened-player-area.top {
+    top: -80px;
+    left: 50%;
+    transform: translateX(-50%);
+    flex-direction: row;
+    justify-content: center;
+}
+
+.opened-player-area.bottom {
+    bottom: -80px;
+    left: 50%;
+    transform: translateX(-50%);
+    flex-direction: row;
+    justify-content: center;
+}
+
+.opened-player-area.left {
+    left: -120px;
+    top: 50%;
+    transform: translateY(-50%);
+    flex-direction: column;
+    max-height: 250px;
+}
+
+.opened-player-area.right {
+    right: -120px;
+    top: 50%;
+    transform: translateY(-50%);
+    flex-direction: column;
+    max-height: 250px;
+}
+
+/* Açık Grup Stili */
+.opened-group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 6px;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 8px;
+    border: 2px solid rgba(16, 185, 129, 0.5);
+    position: relative;
+}
+
+.opened-group.pairs {
+    border-color: rgba(139, 92, 246, 0.5);
+    gap: 8px;
+}
+
+.opened-group .mini-tile {
+    width: 28px;
+    height: 40px;
+    background: linear-gradient(145deg, #f5f0e1, #e8e0c8);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.8rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Drop Zone (taş ekleme alanı) */
+.opened-group .drop-zone {
+    width: 24px;
+    height: 36px;
+    border: 2px dashed rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.opened-group:hover .drop-zone,
+.opened-group.drag-over .drop-zone {
+    opacity: 1;
+}
+
+.opened-group.drag-over {
+    border-color: rgba(16, 185, 129, 1);
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.5);
+}
+
+/* ============================================
    Oyuncu Alanları (Player Areas)
    ============================================ */
 
@@ -503,6 +657,9 @@ body {
     border: 1px solid #94a3b8;
     border-radius: 4px;
     box-shadow: -1px 1px 2px rgba(0, 0, 0, 0.3);
+    display: block !important;
+    z-index: 10;
+    opacity: 1 !important;
 }
 
 /* Konumlandırmalar */
@@ -548,10 +705,67 @@ body {
     left: 50%;
     transform: translateX(-50%);
     width: 100%;
+    max-width: 1200px;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 15px;
+    z-index: 20;
+    padding: 0 20px;
+}
+
+/* Oyuncu Atık Alanları */
+.player-discard {
     display: flex;
     flex-direction: column;
     align-items: center;
-    z-index: 20;
+    gap: 5px;
+    min-width: 80px;
+    max-width: 120px;
+}
+
+.discard-label {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.6);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.discard-tiles {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 10px;
+    min-height: 80px;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.left-discard .discard-tiles {
+    border-color: rgba(16, 185, 129, 0.4);
+    cursor: pointer;
+}
+
+.left-discard .discard-tiles:hover {
+    border-color: rgba(16, 185, 129, 0.8);
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.right-discard .discard-tiles {
+    border-color: rgba(239, 68, 68, 0.4);
+}
+
+/* Atık alandaki mini taşlar */
+.discard-tiles .mini-tile {
+    width: 35px;
+    height: 50px;
+    transform: scale(0.5);
+    transform-origin: center;
+    margin: -12px 0;
 }
 
 .player-info.self {
@@ -571,8 +785,8 @@ body {
     max-width: 1000px;
     min-height: var(--cue-height);
     position: relative;
-    transform-style: preserve-3d;
-    perspective: 1000px;
+    /* transform-style: preserve-3d; */
+    /* perspective: 1000px; */
 }
 
 .cue-wood {
@@ -590,15 +804,15 @@ body {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    /* Hafif 3D Eğim */
-    transform: rotateX(5deg);
-    transform-origin: bottom center;
+    /* Hafif 3D Eğim - İPTAL (Tıklama Sorunu İçin) */
+    /* transform: rotateX(5deg); */
+    /* transform-origin: bottom center; */
 }
 
 /* Istaka Rafları */
 .cue-row {
     position: relative;
-    min-height: 105px;
+    min-height: 75px;
     display: flex;
     align-items: flex-end;
     gap: 3px;
@@ -606,6 +820,8 @@ body {
     padding-bottom: 8px;
     /* Raf derinliği çizgisi */
     border-bottom: 3px solid rgba(0, 0, 0, 0.25);
+    pointer-events: auto !important;
+    z-index: 900 !important;
 }
 
 .cue-row.top-row {
@@ -621,11 +837,11 @@ body {
    ============================================ */
 
 .tile-sprite {
-    width: 70px;
-    height: 100px;
+    width: 50px;
+    height: 70px;
     background-image: url('../asset/Taslar.png');
-    background-size: 910px 500px;
-    border-radius: 4px;
+    background-size: 650px 350px;
+    border-radius: 3px;
     position: relative;
     flex-shrink: 0;
     cursor: grab;
@@ -634,10 +850,18 @@ body {
     box-shadow:
         1px 1px 0px #bbb,
         2px 2px 0px #999,
-        3px 3px 5px rgba(0, 0, 0, 0.4);
-    /* Hafif dikey eğim */
-    transform: rotateX(-5deg);
+        2px 2px 4px rgba(0, 0, 0, 0.4);
+    /* Hafif dikey eğim - İPTAL */
+    /* transform: rotateX(-5deg); */
     transform-origin: bottom center;
+
+    /* Kritik Düzeltmeler - Tıklama ve Sürükleme İçin */
+    pointer-events: auto !important;
+    z-index: 1000 !important;
+    /* UI layer (90) üzerinde olmalı */
+    touch-action: none;
+    /* Mobilde sayfa kaydırmayı engelle */
+    user-select: none;
 }
 
 .tile-sprite:hover {
@@ -1145,6 +1369,61 @@ body {
 
 .avatar-option.selected img {
     transform: scale(1.1);
+}
+
+/* Istaka Renk Seçimi */
+.istaka-selection {
+    margin-bottom: 15px;
+}
+
+.istaka-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.istaka-option {
+    position: relative;
+    height: 50px;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.istaka-option img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s;
+}
+
+.istaka-option:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.istaka-option.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 15px rgba(251, 191, 36, 0.4);
+}
+
+.istaka-option.selected img {
+    transform: scale(1.02);
+}
+
+.istaka-label {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    text-align: center;
+    padding: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
 }
 
 /* Butonlar */
@@ -1660,4 +1939,370 @@ body {
 
 .lobby-leave-btn:hover {
     background: rgba(239, 68, 68, 0.3);
+}
+
+/* ============================================
+   🍅 Domates Fırlatma Sistemi
+   ============================================ */
+
+.tomato-btn {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, #ef4444, #dc2626);
+    border: none;
+    font-size: 2rem;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+    transition: transform 0.2s, box-shadow 0.2s;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tomato-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.6);
+}
+
+.tomato-btn:active {
+    transform: scale(0.95);
+}
+
+.tomato-counter {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #fbbf24;
+    color: #000;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 0.8rem;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tomato-select-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.tomato-select-overlay.hidden {
+    display: none;
+}
+
+.tomato-select-panel {
+    background: #1e293b;
+    padding: 30px;
+    border-radius: 16px;
+    text-align: center;
+    color: white;
+    max-width: 400px;
+}
+
+.tomato-select-panel h3 {
+    font-size: 1.5rem;
+    margin-bottom: 10px;
+}
+
+.target-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 20px 0;
+}
+
+.target-btn {
+    padding: 15px 25px;
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    border-radius: 10px;
+    color: white;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.target-btn:hover {
+    background: rgba(239, 68, 68, 0.4);
+    transform: scale(1.02);
+}
+
+.cancel-throw-btn {
+    padding: 12px 30px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.cancel-throw-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Flying Tomato Animation */
+.flying-tomato {
+    position: fixed;
+    font-size: 3rem;
+    pointer-events: none;
+    z-index: 3000;
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+}
+
+/* Tomato Splat */
+.tomato-splat {
+    position: fixed;
+    font-size: 4rem;
+    pointer-events: none;
+    z-index: 2999;
+    animation: splatFade 1s forwards;
+}
+
+@keyframes splatFade {
+    0% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(1.5);
+    }
+}
+
+/* Tomato Hit Effect */
+.player-info.tomato-hit {
+    animation: shake 0.5s;
+}
+
+@keyframes shake {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    25% {
+        transform: translateX(-10px);
+    }
+
+    50% {
+        transform: translateX(10px);
+    }
+
+    75% {
+        transform: translateX(-10px);
+    }
+}
+
+/* Tomato Notification */
+.tomato-notification {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(239, 68, 68, 0.9);
+    color: white;
+    padding: 20px 40px;
+    border-radius: 16px;
+    font-size: 1.5rem;
+    font-weight: bold;
+    z-index: 3001;
+    animation: notifPop 2s forwards;
+}
+
+@keyframes notifPop {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.5);
+    }
+
+    20% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.1);
+    }
+
+    30% {
+        transform: translate(-50%, -50%) scale(1);
+    }
+
+    80% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -100%);
+    }
+}
+
+/* === Slot Sistemi === */
+.tile-slot {
+    width: 50px;
+    height: 70px;
+    border: 1px dashed rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-shrink: 0;
+    transition: background-color 0.2s;
+    pointer-events: auto !important;
+    /* KRİTİK: Tıklanabilir olmalı */
+    z-index: 5;
+}
+
+.tile-slot.drag-over {
+    background: linear-gradient(to bottom, rgba(251, 191, 36, 0.2), rgba(251, 191, 36, 0.05));
+    border: 1px solid #f59e0b;
+    box-shadow: 0 0 10px rgba(251, 191, 36, 0.3);
+}
+
+/* Slotların içindeki taşlar */
+.tile-slot .tile-sprite {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0;
+}
+
+/* ============================================
+   🗑️ YENİ ATILAN TAŞ ALANLARI (Side Discards) - REDESIGN
+   ============================================ */
+
+/* Eski orta alanı gizle */
+.discard-section {
+    display: none !important;
+}
+
+/* Yan Cepler Genel Stil (Ahşap Uzantı Görünümü) */
+.player-discard {
+    width: 65px;
+    height: 95px;
+    background: #462e29;
+    /* Istaka rengine yakın */
+    border: 2px solid #281a16;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    bottom: 5px;
+    /* Istaka ile hizalı */
+    box-shadow:
+        inset 0 2px 5px rgba(0, 0, 0, 0.5),
+        0 5px 15px rgba(0, 0, 0, 0.4);
+    z-index: 50;
+    transition: transform 0.2s;
+}
+
+/* Sol Cep (Çek) */
+.player-discard.left-discard {
+    left: -80px;
+    border-right: none;
+    /* Istakaya bitişik görünsün */
+    border-radius: 12px 0 0 12px;
+}
+
+/* Sağ Cep (At) */
+.player-discard.right-discard {
+    right: -80px;
+    border-left: none;
+    border-radius: 0 12px 12px 0;
+}
+
+/* İç Metin (Etiket) */
+.player-discard .discard-label {
+    font-size: 0.70rem;
+    color: #d1d5db;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    font-weight: 700;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+/* Taş Haznesi (İçeri gömük) */
+.player-discard .discard-tiles {
+    width: 44px;
+    height: 60px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.player-discard.left-discard .discard-tiles {
+    border-bottom: 2px solid #10b981;
+    /* Yeşil çizgi */
+}
+
+.player-discard.right-discard .discard-tiles {
+    border-bottom: 2px solid #ef4444;
+    /* Kırmızı çizgi */
+}
+
+/* İkonlar */
+.player-discard.left-discard .discard-tiles::before {
+    content: '📥';
+    font-size: 1.2rem;
+    opacity: 0.5;
+}
+
+.player-discard.right-discard .discard-tiles::before {
+    content: '🗑️';
+    font-size: 1.2rem;
+    opacity: 0.5;
+}
+
+/* Hover Efektleri */
+.player-discard:hover {
+    transform: translateY(-3px);
+    filter: brightness(1.1);
+}
+
+/* Mobilde Pozisyon Ayarları */
+@media (max-width: 768px) {
+    .player-discard {
+        width: 55px;
+        height: 75px;
+        bottom: 10px;
+    }
+
+    .player-discard.left-discard {
+        left: -60px;
+    }
+
+    .player-discard.right-discard {
+        right: -60px;
+    }
+
+    .player-discard .discard-label {
+        display: none;
+    }
 }
