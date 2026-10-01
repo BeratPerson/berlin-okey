@@ -20,7 +20,6 @@ const joinRoomBtn = document.getElementById('joinRoomBtn');
 const teamModeToggle = document.getElementById('teamModeToggle');
 const stackingModeToggle = document.getElementById('stackingModeToggle');
 const penaltyModeToggle = document.getElementById('penaltyModeToggle');
-const tgUserBadge = document.getElementById('tgUserBadge');
 const profilePreviewName = document.getElementById('profilePreviewName');
 const profilePreviewImg = document.getElementById('profilePreviewImg');
 const profilePreviewInitial = document.getElementById('profilePreviewInitial');
@@ -79,12 +78,6 @@ function lockTelegramIdentity(tgUser) {
         playerNameInput.value = playerName;
         playerNameInput.readOnly = true;
         playerNameInput.disabled = true;
-    }
-
-    if (tgUserBadge) {
-        const handle = tgUser.username ? `@${tgUser.username}` : tgUser.firstName;
-        tgUserBadge.textContent = `${handle} · otomatik giriş`;
-        tgUserBadge.classList.remove('hidden');
     }
 
     sessionStorage.setItem('okeyPlayerId', playerName);

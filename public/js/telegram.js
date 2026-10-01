@@ -95,8 +95,8 @@
         const user = tg.initDataUnsafe && tg.initDataUnsafe.user;
         if (!user) return null;
 
-        const displayName = [user.first_name, user.last_name].filter(Boolean).join(' ').trim()
-            || (user.username && String(user.username))
+        // Oyun adı: sadece Telegram adı (first_name), kullanıcı adı (@) kullanılmaz
+        const displayName = (user.first_name && String(user.first_name).trim())
             || 'Oyuncu';
 
         return {
