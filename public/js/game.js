@@ -2346,7 +2346,6 @@ function placeTilesOnSlots(orderedTiles) {
     let slot = 0;
     orderedTiles.forEach((tile) => {
         if (tile === null) {
-            // Grup arası boşluk
             slot = Math.min(slot + 1, SLOT_COUNT - 1);
             return;
         }
@@ -2360,81 +2359,282 @@ function placeTilesOnSlots(orderedTiles) {
     if (window.BerlinTelegram) BerlinTelegram.haptic('light');
 }
 
-/** Seri: renklere göre ayır, sayı sırasına diz, gruplar arasında boşluk bırak */
+/** Seri aralığı puanı: start..end toplamı (okey boşlukları dahil) */
+function scoreRunRange(start, end) {
+    let s = 0;
+    for (let n = start; n <= end; n++) s += n;
+    return s;
+}
+
+/**
+ * Okey ile en yüksek puanlı seri/per düzeni.
+ * - Boşlukları okey ile doldurur
+ * - Kalan okeyleri yüksek uca uzatır (daha fazla puan)
+ * - Çakışmayan gruplardan maksimum toplam puanı seçer
+ */
+function findOptimalSeriesLayout(allTiles) {
+    const COLORS = ['Kirmizi', 'Yesil', 'Mavi', 'Siyah'];
+    const jokers = allTiles.filter(t => isOkey(t));
+    const normals = allTiles.filter(t => !isOkey(t));
+    const maxJokers = jokers.length;
+
+    // Renk → sayı → taş listesi (sahte okey efektif değerde)
+    const buckets = {};
+    COLORS.forEach(c => {
+        buckets[c] = {};
+        for (let n = 1; n <= 13; n++) buckets[c][n] = [];
+    });
+    normals.forEach(t => {
+        const e = getEffectiveTile(t);
+        if (buckets[e.color] && e.number >= 1 && e.number <= 13) {
+            buckets[e.color][e.number].push(t);
+        }
+    });
+
+    const candidates = [];
+
+    // --- SERİ adayları (her renk) ---
+    COLORS.forEach(color => {
+        for (let start = 1; start <= 11; start++) {
+            for (let end = start + 2; end <= 13; end++) {
+                const used = [];
+                let missing = 0;
+                for (let n = start; n <= end; n++) {
+                    const pool = buckets[color][n];
+                    const already = used.filter(t => getEffectiveTile(t).number === n).length;
+                    if (pool.length > already) {
+                        used.push(pool[already]);
+                    } else {
+                        missing++;
+                    }
+                }
+                if (used.length === 0) continue;
+                if (missing > maxJokers) continue;
+
+                const length = end - start + 1;
+                if (length < 3) continue;
+
+                // Temel: boşlukları dolduran okey sayısı
+                const baseJokers = missing;
+                const extraMax = maxJokers - baseJokers;
+
+                // Ekstra okeyleri yüksek uca (ve mümkünse alçak uca) uzatarak dene
+                for (let extHigh = 0; extHigh <= extraMax && end + extHigh <= 13; extHigh++) {
+                    for (let extLow = 0; extLow <= extraMax - extHigh && start - extLow >= 1; extLow++) {
+                        const jokersUsed = baseJokers + extHigh + extLow;
+                        if (jokersUsed > maxJokers) continue;
+                        const s = start - extLow;
+                        const e = end + extHigh;
+                        if (e - s + 1 < 3) continue;
+                        candidates.push({
+                            type: 'run',
+                            color,
+                            start: s,
+                            end: e,
+                            normals: used.slice(),
+                            jokersUsed,
+                            score: scoreRunRange(s, e),
+                            tileIds: used.map(t => t.id)
+                        });
+                    }
+                }
+            }
+        }
+    });
+
+    // --- PER adayları (aynı sayı, farklı renk) ---
+    for (let num = 1; num <= 13; num++) {
+        const colorTiles = [];
+        COLORS.forEach(color => {
+            if (buckets[color][num].length > 0) {
+                colorTiles.push(buckets[color][num][0]);
+            }
+        });
+        const have = colorTiles.length;
+        for (let need = 3; need <= 4; need++) {
+            const missing = need - have;
+            if (missing < 0) continue;
+            if (missing > maxJokers) continue;
+            if (have === 0) continue;
+            const used = colorTiles.slice(0, Math.min(have, need));
+            if (used.length + missing < 3) continue;
+            candidates.push({
+                type: 'set',
+                number: num,
+                normals: used,
+                jokersUsed: Math.max(0, missing),
+                score: need * num,
+                tileIds: used.map(t => t.id)
+            });
+        }
+    }
+
+    // Tekrarlayan / zayıf adayları budama: aynı tile seti + joker için en yüksek skor kalsın
+    const uniq = new Map();
+    candidates.forEach(c => {
+        const key = c.type + '|' + c.tileIds.slice().sort().join(',') + '|j' + c.jokersUsed + '|' + (c.start || '') + '-' + (c.end || '') + '|' + (c.number || '');
+        const prev = uniq.get(key);
+        if (!prev || c.score > prev.score) uniq.set(key, c);
+    });
+    const pool = Array.from(uniq.values());
+
+    // Birkaç greedy strateji — en yüksek toplam puanı seç
+    const strategies = [
+        (c) => c.score,
+        (c) => c.score / (c.jokersUsed + 0.35),
+        (c) => c.score - c.jokersUsed * 8,
+        (c) => c.score * 10 - c.normals.length, // uzun/yüksek puanlı grup
+        (c) => (c.type === 'run' ? c.score * 1.05 : c.score)
+    ];
+
+    let best = { score: -1, groups: [], jokersLeft: maxJokers, leftoverIds: new Set(normals.map(t => t.id)) };
+
+    strategies.forEach((scoreFn) => {
+        const remaining = new Set(normals.map(t => t.id));
+        let jokersLeft = maxJokers;
+        const chosen = [];
+        let total = 0;
+        const sorted = pool.slice().sort((a, b) => scoreFn(b) - scoreFn(a));
+
+        let improved = true;
+        while (improved) {
+            improved = false;
+            let bestC = null;
+            let bestV = -Infinity;
+            for (const c of sorted) {
+                if (c.jokersUsed > jokersLeft) continue;
+                if (!c.tileIds.every(id => remaining.has(id))) continue;
+                // En az 3 taşlık geçerli grup
+                if (c.normals.length + c.jokersUsed < 3) continue;
+                const v = scoreFn(c);
+                if (v > bestV) {
+                    bestV = v;
+                    bestC = c;
+                }
+            }
+            if (!bestC) break;
+            chosen.push(bestC);
+            total += bestC.score;
+            bestC.tileIds.forEach(id => remaining.delete(id));
+            jokersLeft -= bestC.jokersUsed;
+            improved = true;
+        }
+
+        if (total > best.score) {
+            best = { score: total, groups: chosen, jokersLeft, leftoverIds: remaining };
+        }
+    });
+
+    // Görsel dizi: gruplar + okey yerleşimi + artanlar
+    const jokerQueue = jokers.slice();
+    const usedJokerCount = maxJokers - best.jokersLeft;
+    const allocatedJokers = jokerQueue.splice(0, usedJokerCount);
+    let jokerPtr = 0;
+
+    const ordered = [];
+    best.groups.forEach((g) => {
+        if (ordered.length) ordered.push(null);
+        if (g.type === 'run') {
+            const byNum = {};
+            g.normals.forEach(t => {
+                byNum[getEffectiveTile(t).number] = t;
+            });
+            for (let n = g.start; n <= g.end; n++) {
+                if (byNum[n]) ordered.push(byNum[n]);
+                else ordered.push(allocatedJokers[jokerPtr++] || jokers[0]);
+            }
+        } else {
+            // Per: gerçek taşlar + okeyler
+            ordered.push(...g.normals);
+            for (let i = 0; i < g.jokersUsed; i++) {
+                ordered.push(allocatedJokers[jokerPtr++] || jokers[0]);
+            }
+        }
+    });
+
+    // Kullanılmayan normal taşlar (renge + sayıya göre)
+    const leftover = normals.filter(t => best.leftoverIds.has(t.id));
+    leftover.sort((a, b) => {
+        const ea = getEffectiveTile(a);
+        const eb = getEffectiveTile(b);
+        if (ea.color !== eb.color) return String(ea.color).localeCompare(String(eb.color));
+        return ea.number - eb.number;
+    });
+    if (leftover.length) {
+        if (ordered.length) ordered.push(null);
+        ordered.push(...leftover);
+    }
+
+    // Artan okeyler (kullanılmayan)
+    const unusedJokers = jokers.slice(usedJokerCount);
+    if (unusedJokers.length) {
+        if (ordered.length) ordered.push(null);
+        ordered.push(...unusedJokers);
+    }
+
+    return { ordered, score: Math.max(0, best.score), groupCount: best.groups.length };
+}
+
+/** SERİ: okey kullanarak en yüksek puanlı dizilim */
 function autoSortBySeries() {
     syncTilesFromSlots();
     const tiles = gameState.slots.filter(Boolean);
     if (!tiles.length) return;
 
-    const okeys = [];
-    const fakes = [];
-    const byColor = { Kirmizi: [], Yesil: [], Mavi: [], Siyah: [] };
+    const result = findOptimalSeriesLayout(tiles);
+    placeTilesOnSlots(result.ordered);
 
-    tiles.forEach((t) => {
-        if (t.isFakeJoker) fakes.push(t);
-        else if (isOkey(t)) okeys.push(t);
-        else if (byColor[t.color]) byColor[t.color].push(t);
-        else fakes.push(t);
-    });
-
-    Object.keys(byColor).forEach((c) => {
-        byColor[c].sort((a, b) => a.number - b.number);
-    });
-
-    const ordered = [];
-    ['Kirmizi', 'Yesil', 'Mavi', 'Siyah'].forEach((color) => {
-        const list = byColor[color];
-        if (!list.length) return;
-        if (ordered.length) ordered.push(null);
-        // Serileri ayır: ardışık değilse boşluk
-        let prev = null;
-        list.forEach((tile) => {
-            if (prev && tile.number !== prev.number + 1 && !(prev.number === 13 && tile.number === 1)) {
-                ordered.push(null);
-            }
-            ordered.push(tile);
-            prev = tile;
-        });
-    });
-
-    if (okeys.length || fakes.length) {
-        if (ordered.length) ordered.push(null);
-        ordered.push(...okeys, ...fakes);
-    }
-
-    placeTilesOnSlots(ordered);
-    showToast('Serilere göre dizildi', 'info');
+    const need = gameState.minimumOpenScore || 101;
+    const msg = result.score >= need
+        ? `Seri dizildi · ${result.score} puan (açmaya hazır!)`
+        : `Seri dizildi · ${result.score}/${need} puan`;
+    showToast(msg, result.score >= need ? 'success' : 'info');
 }
 
-/** Çift: aynı sayılı taşları yan yana topla */
+/** Çift: aynı sayılı taşları yan yana topla (okeyleri en faydalı per'e ekle) */
 function autoSortByPairs() {
     syncTilesFromSlots();
     const tiles = gameState.slots.filter(Boolean);
     if (!tiles.length) return;
 
-    const okeys = [];
-    const fakes = [];
+    const jokers = tiles.filter(t => isOkey(t));
+    const normals = tiles.filter(t => !isOkey(t));
     const byNumber = {};
 
-    tiles.forEach((t) => {
-        if (t.isFakeJoker) fakes.push(t);
-        else if (isOkey(t)) okeys.push(t);
-        else {
-            const n = t.number;
-            if (!byNumber[n]) byNumber[n] = [];
-            byNumber[n].push(t);
-        }
+    normals.forEach((t) => {
+        const n = getEffectiveTile(t).number;
+        if (!byNumber[n]) byNumber[n] = [];
+        byNumber[n].push(t);
     });
 
     Object.keys(byNumber).forEach((n) => {
-        byNumber[n].sort((a, b) => String(a.color).localeCompare(String(b.color)));
+        byNumber[n].sort((a, b) => String(getEffectiveTile(a).color).localeCompare(String(getEffectiveTile(b).color)));
+    });
+
+    // Okeyleri en çok taşı olan / en yüksek sayılı gruba ekle (per potansiyeli)
+    let jokerPool = jokers.slice();
+    const nums = Object.keys(byNumber).map(Number).sort((a, b) => {
+        const ca = byNumber[a].length;
+        const cb = byNumber[b].length;
+        if (cb !== ca) return cb - ca;
+        return b - a;
+    });
+
+    // Önce 2+ olanlara okey ekleyerek 3'lü per yapmaya çalış
+    nums.forEach((n) => {
+        while (jokerPool.length && byNumber[n].length < 3 && byNumber[n].length >= 1) {
+            byNumber[n].push(jokerPool.shift());
+        }
+        while (jokerPool.length && byNumber[n].length === 3) {
+            // 4. renk için bir okey daha
+            byNumber[n].push(jokerPool.shift());
+            break;
+        }
     });
 
     const ordered = [];
-    // Önce 2+ olan sayılar (çift/per adayları), sonra tekler
-    const nums = Object.keys(byNumber).map(Number).sort((a, b) => a - b);
-    const multi = nums.filter((n) => byNumber[n].length >= 2);
-    const singles = nums.filter((n) => byNumber[n].length === 1);
+    const multi = Object.keys(byNumber).map(Number).filter(n => byNumber[n].length >= 2).sort((a, b) => b - a);
+    const singles = Object.keys(byNumber).map(Number).filter(n => byNumber[n].length === 1).sort((a, b) => a - b);
 
     multi.forEach((n) => {
         if (ordered.length) ordered.push(null);
@@ -2444,10 +2644,9 @@ function autoSortByPairs() {
         if (ordered.length) ordered.push(null);
         ordered.push(...byNumber[n]);
     });
-
-    if (okeys.length || fakes.length) {
+    if (jokerPool.length) {
         if (ordered.length) ordered.push(null);
-        ordered.push(...okeys, ...fakes);
+        ordered.push(...jokerPool);
     }
 
     placeTilesOnSlots(ordered);
