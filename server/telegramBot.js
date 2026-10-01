@@ -132,9 +132,19 @@ async function pollUpdates(offset = 0) {
 }
 
 async function startTelegramBot() {
+    // Lokal: ENABLE_TELEGRAM_BOT=false → bot sadece Render'da çalışır
+    if (String(process.env.ENABLE_TELEGRAM_BOT || '').toLowerCase() === 'false') {
+        Logger.warn('ENABLE_TELEGRAM_BOT=false — bot bu süreçte başlatılmadı (online sunucuda true olmalı)');
+        return null;
+    }
+
     if (!BOT_TOKEN) {
         Logger.warn('BOT_TOKEN yok — Telegram bot başlatılmadı');
         return null;
+    }
+
+    if (!WEBAPP_URL) {
+        Logger.warn('WEBAPP_URL yok — Mini App butonu eksik kalabilir');
     }
 
     try {

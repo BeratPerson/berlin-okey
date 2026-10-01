@@ -13,7 +13,9 @@ services:
       - key: BOT_USERNAME
         value: Berlinokeybot
       - key: WEBAPP_URL
-        sync: false
+        value: "https://berlin-okey.onrender.com"
+      - key: ENABLE_TELEGRAM_BOT
+        value: "true"
       - key: BOT_TOKEN
         sync: false
       - key: MAX_PLAYERS

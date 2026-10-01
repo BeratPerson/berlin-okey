@@ -1,70 +1,56 @@
-# Berlin Okey — Telegram Mini App
+# Berlin Okey — Online Telegram Mini App
 
-Bot: [@Berlinokeybot](https://t.me/Berlinokeybot)
+Bot: [@Berlinokeybot](https://t.me/Berlinokeybot)  
+Canlı: [https://berlin-okey.onrender.com](https://berlin-okey.onrender.com)
 
-## Güvenlik
+## Online nasıl oynanır
 
-Bot token'ını asla sohbete, GitHub'a veya ekran görüntüsüne koyma.  
-Token sızdıysa [@BotFather](https://t.me/BotFather) → `/revoke` ile yenile ve `.env` içindeki `BOT_TOKEN`'ı güncelle.
+1. Telegram’da [@Berlinokeybot](https://t.me/Berlinokeybot) aç  
+2. `/start` → **Oyna**  
+3. **Hızlı Oyna** (veya özel oda / kod)  
+4. 4 kişi dolunca masa başlar  
 
-## Kurulum
+Aynı anda en fazla **100 oyuncu** (~25 masa).
 
-1. Bağımlılıklar
-   ```bash
-   npm install
-   ```
+## Render (canlı) ortam değişkenleri
 
-2. `.env` dosyasını kontrol et
-   ```env
-   BOT_TOKEN=...
-   BOT_USERNAME=Berlinokeybot
-   WEBAPP_URL=https://SENIN-HTTPS-URLIN.com
-   PORT=3000
-   ```
+| Key | Değer |
+|-----|--------|
+| `BOT_TOKEN` | BotFather token |
+| `BOT_USERNAME` | `Berlinokeybot` |
+| `WEBAPP_URL` | `https://berlin-okey.onrender.com` |
+| `ENABLE_TELEGRAM_BOT` | `true` |
+| `MAX_PLAYERS` | `100` |
+| `MAX_ROOMS` | `40` |
 
-3. Sunucuyu başlat
-   ```bash
-   npm start
-   ```
+## Lokal geliştirme
 
-## Mini App'in çalışması için HTTPS şart
-
-Telegram WebView yalnızca **HTTPS** URL açar.
-
-### Yerel test (ngrok)
-
-```bash
-npm start
-ngrok http 3000
+```env
+BOT_TOKEN=...
+BOT_USERNAME=Berlinokeybot
+WEBAPP_URL=https://berlin-okey.onrender.com
+ENABLE_TELEGRAM_BOT=false
+PORT=3000
 ```
 
-Çıkan `https://xxxx.ngrok-free.app` adresini `.env` → `WEBAPP_URL` yap, sunucuyu yeniden başlat.
+`ENABLE_TELEGRAM_BOT=false` tut — yoksa lokal + Render çift `/start` cevabı verir.
 
-### Canlı yayın (Render / Railway / benzeri)
+```bash
+npm install
+npm start
+```
 
-1. Repoyu deploy et (`npm start`, Node 18+)
-2. Environment variables ekle: `BOT_TOKEN`, `WEBAPP_URL` (deploy URL'in)
-3. Deploy URL'inin `https://` olduğundan emin ol
-4. Telegram'da `@Berlinokeybot` → `/start` → **Oyna**
+Tarayıcı: `http://localhost:3000`
 
-## BotFather (isteğe bağlı)
+## BotFather
 
-BotFather'da da Web App bağlayabilirsin:
+1. `/mybots` → Berlinokeybot → **Bot Settings** → **Menu Button**  
+2. URL: `https://berlin-okey.onrender.com`  
 
-1. `/mybots` → Berlinokeybot → **Bot Settings** → **Menu Button**
-2. URL: `WEBAPP_URL` ile aynı adres
-
-Sunucu açılınca menü butonu API ile de otomatik ayarlanır.
-
-## Oynanış
-
-1. Telegram'da bota `/start`
-2. **Oyna** → Mini App açılır
-3. İsim (Telegram'dan otomatik), avatar, istaka, mod seç
-4. 4 kişi dolunca el başlar
+Sunucu açılınca menü butonu API ile de ayarlanır.
 
 ## Notlar
 
-- Tek ortak oda (`MAIN`) — aynı anda bir masa
-- Tarayıcıdan da `http://localhost:3000` ile test edilebilir
-- Socket.IO WebSocket kullanır; reverse proxy'de WS desteklenmeli
+- Free Render uyku: ilk açılış 30–60 sn sürebilir  
+- Socket.IO WebSocket kullanır  
+- Token’ı asla GitHub’a koyma; sızdıysa BotFather → `/revoke`

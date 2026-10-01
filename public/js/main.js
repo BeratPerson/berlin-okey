@@ -1,10 +1,14 @@
 // Berlin Okey - Ana Sayfa (oda oluştur / 6 haneli koda katıl)
-const socket = io({
-    transports: ['websocket', 'polling']
-});
+const socket = (window.BerlinSocket && BerlinSocket.create)
+    ? BerlinSocket.create()
+    : io({ transports: ['websocket', 'polling'], reconnection: true });
 
 socket.on('connect', () => {
     console.log('Socket connected:', socket.id);
+});
+
+socket.on('reconnect', () => {
+    console.log('Socket reconnected:', socket.id);
 });
 
 socket.on('connect_error', (err) => {
