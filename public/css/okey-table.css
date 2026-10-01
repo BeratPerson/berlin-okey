@@ -1,47 +1,154 @@
 /* ============================================
-   Berlin Okey — Referans masa düzeni (mobil)
+   Berlin Okey — TELEFON ÖNCELİKLİ DÜZEN
+   Telegram Mini App / mobil viewport
    ============================================ */
+
+:root {
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+
+    /* Telefon taş ölçeği (13 taş + boşluk sığsın) */
+    --rack-scale: 0.52;
+    --rack-tile-w: 50px;
+    --rack-tile-h: 70px;
+    --cue-height: 168px;
+    --phone-hud-h: 44px;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
+    touch-action: manipulation;
+}
 
 body.telegram-mini-app,
 .game-container:not(.hidden) {
     overflow: hidden;
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
+}
+
+.game-container {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
 }
 
 .game-board {
+    width: 100% !important;
+    height: 100% !important;
+    position: absolute !important;
+    inset: 0;
     background:
-        radial-gradient(ellipse at center, #1e5a8a 0%, #0c2d4a 55%, #081828 100%);
+        radial-gradient(ellipse at center, #1e5a8a 0%, #0c2d4a 55%, #081828 100%) !important;
 }
 
 .game-board::before {
     background-image:
         radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.04) 0 1px, transparent 2px),
         radial-gradient(circle at 70% 60%, rgba(255, 255, 255, 0.03) 0 1px, transparent 2px);
-    background-size: 48px 48px, 64px 64px;
-    opacity: 0.9;
+    background-size: 40px 40px, 56px 56px;
+    opacity: 0.85;
 }
 
-/* Merkez: meld + sağ stack */
-.table-center.okey-center {
-    top: 42%;
-    width: min(92vw, 720px);
-    height: min(42vh, 280px);
+.particles {
+    display: none !important;
+}
+
+/* ---- Üst HUD (kompakt) ---- */
+.ui-layer {
+    padding: 6px 8px !important;
+    z-index: 50;
+    height: auto;
+    align-items: flex-start;
+}
+
+.stats-panel {
+    display: none !important;
+}
+
+.game-status-panel {
+    padding: 6px 10px !important;
+    font-size: 0.75rem !important;
+    border-radius: 12px !important;
+    gap: 0;
     display: flex;
-    flex-direction: row;
-    align-items: stretch;
-    justify-content: center;
-    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+    max-width: 96vw;
+}
+
+.game-status-panel .divider {
+    height: 18px !important;
+    margin: 0 6px;
+}
+
+.game-status-panel .status-item {
+    gap: 4px;
+}
+
+.game-status-panel .label {
+    font-size: 0.65rem;
+    opacity: 0.75;
+}
+
+.game-status-panel .value {
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.turn-banner {
+    top: calc(8px + var(--safe-top) + 40px) !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    max-width: 92vw !important;
+    font-size: 0.72rem !important;
+    padding: 6px 12px !important;
+    white-space: normal !important;
+    line-height: 1.25;
+    z-index: 45;
+}
+
+/* ---- Merkez masa ---- */
+.table-center.okey-center {
+    position: absolute !important;
+    left: 50% !important;
+    top: calc(52px + var(--safe-top)) !important;
+    bottom: calc(var(--cue-height) + 92px + var(--safe-bottom)) !important;
+    width: calc(100% - 12px) !important;
+    max-width: 100% !important;
+    height: auto !important;
+    transform: translateX(-50%) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    gap: 8px !important;
     pointer-events: none;
-    transform: translate(-50%, -50%);
+    z-index: 10;
 }
 
 .meld-board {
     flex: 1;
-    min-width: 0;
-    background: rgba(8, 30, 55, 0.72);
+    min-height: 0;
+    background: rgba(8, 30, 55, 0.78);
     border: 1px solid rgba(120, 180, 255, 0.22);
-    border-radius: 14px;
-    box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.45);
-    padding: 10px 12px;
+    border-radius: 12px;
+    box-shadow: inset 0 0 28px rgba(0, 0, 0, 0.45);
+    padding: 6px 8px;
     display: flex;
     flex-direction: column;
     pointer-events: auto;
@@ -49,11 +156,11 @@ body.telegram-mini-app,
 }
 
 .meld-board-label {
-    font-size: 0.7rem;
-    letter-spacing: 0.12em;
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: rgba(200, 220, 255, 0.55);
-    margin-bottom: 6px;
+    color: rgba(200, 220, 255, 0.5);
+    margin-bottom: 4px;
 }
 
 .meld-groups {
@@ -61,23 +168,27 @@ body.telegram-mini-app,
     display: flex;
     flex-wrap: wrap;
     align-content: flex-start;
-    gap: 10px 14px;
+    gap: 6px 8px;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    padding-bottom: 4px;
 }
 
 .meld-groups .opened-group {
     background: rgba(0, 0, 0, 0.35);
     border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 8px;
-    padding: 4px 6px;
-    gap: 1px;
+    border-radius: 6px;
+    padding: 2px 4px;
+    gap: 0;
 }
 
-.meld-groups .opened-sprite {
-    transform: scale(0.78);
-    margin: -8px -6px;
+.meld-groups .opened-sprite,
+.meld-groups .display-tile {
+    width: 50px !important;
+    height: 70px !important;
+    transform: scale(0.48);
+    margin: -16px -12px;
+    flex-shrink: 0;
+    pointer-events: none;
 }
 
 .meld-source-hidden {
@@ -89,13 +200,14 @@ body.telegram-mini-app,
     pointer-events: none !important;
 }
 
+/* Gösterge / yığın / okey — yatay şerit (telefon) */
 .center-stack {
-    width: 78px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
+    width: 100% !important;
+    flex-direction: row !important;
+    justify-content: space-evenly !important;
+    align-items: flex-end !important;
+    gap: 4px !important;
+    padding: 4px 0;
     pointer-events: auto;
     flex-shrink: 0;
 }
@@ -104,107 +216,191 @@ body.telegram-mini-app,
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
+    gap: 2px;
 }
 
 .center-stack .slot-label,
 .center-stack .area-label {
-    font-size: 0.65rem;
+    font-size: 0.58rem;
     margin: 0;
     color: rgba(220, 235, 255, 0.7);
 }
 
 .center-stack .tile-placeholder,
-.center-stack .sprite-tile-host {
-    width: 50px;
-    height: 70px;
+.center-stack .sprite-tile-host,
+.center-stack .pile-stack {
+    width: 36px;
+    height: 50px;
 }
 
-.center-stack .pile-stack {
-    width: 50px;
-    height: 70px;
+.center-stack .tile-sprite,
+.center-stack .display-tile {
+    width: 50px !important;
+    height: 70px !important;
+    transform: scale(0.72);
+    transform-origin: center center;
 }
 
 .hidden-legacy {
     display: none !important;
 }
 
-/* Rakip avatarları sade */
+/* ---- Rakipler ---- */
 .opponent-area .opponent-hand {
-    display: none;
+    display: none !important;
 }
 
 .opponent-area.top {
-    top: 8px;
+    top: calc(6px + var(--safe-top)) !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 20;
 }
 
 .opponent-area.left {
-    left: 8px;
+    left: 4px !important;
+    top: 38% !important;
+    transform: translateY(-50%) !important;
+    z-index: 20;
 }
 
 .opponent-area.right {
-    right: 8px;
+    right: 4px !important;
+    top: 38% !important;
+    transform: translateY(-50%) !important;
+    z-index: 20;
 }
 
 .player-info {
-    padding: 6px 12px;
-    gap: 8px;
+    padding: 4px 8px !important;
+    gap: 6px !important;
+    border-radius: 999px !important;
+    max-width: 42vw;
+}
+
+.player-info .avatar-wrapper {
+    width: 28px !important;
+    height: 28px !important;
+}
+
+.player-name {
+    font-size: 0.7rem !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 72px;
+}
+
+.tile-count-badge,
+.player-score {
+    font-size: 0.62rem !important;
 }
 
 .player-info.self {
-    bottom: auto;
-    top: -42px;
-    right: 8px;
-    left: auto;
+    position: absolute !important;
+    top: -34px !important;
+    right: 4px !important;
+    bottom: auto !important;
+    left: auto !important;
+    transform: none !important;
 }
 
-/* Alt ıstaka + sort butonları */
+/* ---- Alt ıstaka (telefon) ---- */
 .player-area.bottom {
-    bottom: 6px;
-    gap: 8px;
-    padding: 0 8px;
-    max-width: 100vw;
-    align-items: flex-end;
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: calc(4px + var(--safe-bottom)) !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    transform: none !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-end !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    padding: 0 4px !important;
+    z-index: 30;
+}
+
+.cue-container {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    width: auto !important;
+    min-height: var(--cue-height) !important;
+    height: var(--cue-height) !important;
+}
+
+.cue-wood {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: var(--cue-height) !important;
+    padding: 6px 6px !important;
+    border-radius: 10px 10px 0 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    overflow: hidden;
+}
+
+.cue-row {
+    min-height: calc(var(--rack-tile-h) * var(--rack-scale) + 4px) !important;
+    height: calc(var(--rack-tile-h) * var(--rack-scale) + 8px) !important;
+    gap: 1px !important;
+    padding-left: 2px !important;
+    padding-bottom: 2px !important;
+    align-items: flex-end !important;
+    overflow: visible;
+}
+
+.cue-row .tile-slot {
+    width: calc(var(--rack-tile-w) * var(--rack-scale)) !important;
+    height: calc(var(--rack-tile-h) * var(--rack-scale)) !important;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.cue-row .tile-sprite {
+    width: var(--rack-tile-w) !important;
+    height: var(--rack-tile-h) !important;
+    transform: scale(var(--rack-scale)) !important;
+    transform-origin: bottom left !important;
+    position: absolute !important;
+    left: 0;
+    bottom: 0;
+    z-index: 5 !important;
 }
 
 .rack-sort-btn {
     flex-shrink: 0;
-    width: 52px;
-    min-height: 72px;
+    width: 40px;
+    min-height: 64px;
     border: 1px solid rgba(255, 215, 120, 0.45);
-    border-radius: 12px;
+    border-radius: 10px;
     background: linear-gradient(180deg, #3a2a18 0%, #1f160c 100%);
     color: #fde68a;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: 2px;
     cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
-    padding: 6px 4px;
-    z-index: 30;
-}
-
-.rack-sort-btn:active {
-    transform: scale(0.96);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+    padding: 4px 2px;
+    z-index: 35;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .rack-sort-btn .sort-icon {
-    font-size: 0.85rem;
+    font-size: 0.7rem;
     line-height: 1;
 }
 
 .rack-sort-btn .sort-text {
-    font-size: 0.72rem;
+    font-size: 0.58rem;
     font-weight: 800;
-    letter-spacing: 0.04em;
-}
-
-.cue-container {
-    flex: 1;
-    min-width: 0;
-    max-width: min(780px, calc(100vw - 220px));
+    letter-spacing: 0.02em;
 }
 
 .player-discard {
@@ -212,134 +408,256 @@ body.telegram-mini-app,
     left: auto !important;
     right: auto !important;
     bottom: auto !important;
-    width: 62px;
-    height: 100px;
+    width: 44px !important;
+    height: 72px !important;
     flex-shrink: 0;
+    z-index: 35;
+}
+
+.player-discard .discard-label {
+    font-size: 0.55rem !important;
+    margin-bottom: 2px !important;
+}
+
+.player-discard .discard-tiles {
+    width: 38px !important;
+    height: 52px !important;
+}
+
+.player-discard .discard-tiles .tile-sprite,
+.player-discard .discard-tiles .display-tile {
+    width: 50px !important;
+    height: 70px !important;
+    transform: scale(0.7) !important;
+    transform-origin: center center !important;
+    margin: 0 !important;
+}
+
+/* Aksiyonlar */
+.action-buttons {
+    position: absolute !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    bottom: calc(var(--cue-height) + 12px + var(--safe-bottom)) !important;
+    display: flex !important;
+    align-items: center;
+    gap: 6px !important;
+    z-index: 40;
+    width: auto;
+    max-width: 96vw;
+}
+
+.action-btn {
+    padding: 8px 12px !important;
+    font-size: 0.75rem !important;
+    border-radius: 10px !important;
+    min-height: 36px;
 }
 
 .hand-score-badge {
-    min-width: 64px;
-    padding: 8px 10px;
-    border-radius: 10px;
-    background: rgba(15, 23, 42, 0.85);
-    border: 1px solid rgba(251, 191, 36, 0.45);
+    min-width: 56px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(251, 191, 36, 0.5);
     color: #fbbf24;
     font-weight: 800;
-    font-size: 0.85rem;
+    font-size: 0.72rem;
     text-align: center;
 }
 
-.action-buttons {
-    bottom: calc(var(--cue-height, 260px) + 28px);
-    gap: 10px;
-    z-index: 40;
+.hand-score-badge.ready {
+    background: rgba(16, 185, 129, 0.25);
+    border-color: #34d399;
+    color: #6ee7b7;
 }
 
-.ui-layer {
+.tomato-btn {
+    bottom: calc(var(--cue-height) + 56px + var(--safe-bottom)) !important;
+    right: 8px !important;
+    width: 44px !important;
+    height: 44px !important;
+    font-size: 1.2rem !important;
+}
+
+/* Ana menü — telefon */
+.phone-lobby.container,
+body.phone-layout .container {
+    max-width: 100%;
+    width: 100%;
+    height: auto;
+    min-height: 100dvh;
+    justify-content: flex-start;
+    padding: calc(16px + env(safe-area-inset-top, 0px)) 14px calc(24px + env(safe-area-inset-bottom, 0px));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+body.phone-layout .logo {
+    font-size: 2rem;
+}
+
+body.phone-layout .logo-icon {
+    font-size: 2.2rem;
+}
+
+body.phone-layout .header {
+    margin-bottom: 16px;
+}
+
+body.phone-layout .card {
+    padding: 18px 14px;
+    border-radius: 18px;
+}
+
+body.phone-layout .card h2 {
+    font-size: 1.35rem;
+}
+
+body.phone-layout .welcome-text {
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+}
+
+body.phone-layout .avatar-grid.large .avatar-option {
+    width: 64px;
+    height: 64px;
+}
+
+body.phone-layout .team-mode-toggle {
+    margin: 12px 0;
     padding: 10px;
 }
 
-.stats-panel,
-.game-status-panel {
-    padding: 10px 12px;
-    font-size: 0.85rem;
+body.phone-layout .btn-large {
+    min-height: 48px;
+    font-size: 1rem;
 }
 
-.turn-banner {
-    top: 58px;
-    max-width: 88vw;
+
+.lobby-container {
+    width: 100%;
+    max-width: 420px;
+    margin: 0 auto;
 }
 
-/* Mobil / yatay Telegram */
-@media (max-width: 900px), (max-height: 520px) {
-    .table-center.okey-center {
-        top: 38%;
-        height: min(38vh, 220px);
-        width: min(96vw, 640px);
-        gap: 8px;
+.lobby-room-code-value {
+    font-size: 2rem !important;
+    letter-spacing: 0.2em !important;
+}
+
+/* Dar telefonlar */
+@media (max-width: 380px) {
+    :root {
+        --rack-scale: 0.44;
+        --cue-height: 148px;
     }
 
-    .center-stack {
-        width: 64px;
-        gap: 6px;
+    .rack-sort-btn {
+        width: 34px;
+        min-height: 56px;
+    }
+
+    .player-discard {
+        width: 38px !important;
+        height: 64px !important;
     }
 
     .center-stack .tile-placeholder,
     .center-stack .sprite-tile-host,
     .center-stack .pile-stack {
-        width: 44px;
-        height: 62px;
+        width: 30px;
+        height: 42px;
     }
 
     .center-stack .tile-sprite,
     .center-stack .display-tile {
-        width: 50px !important;
-        height: 70px !important;
-        transform: scale(0.84);
-        transform-origin: center center;
-    }
-
-    .player-discard .discard-tiles .tile-sprite {
-        width: 50px !important;
-        height: 70px !important;
-        transform: scale(0.84) !important;
-        transform-origin: center center;
-    }
-
-    .cue-container {
-        --cue-height: 200px;
-        max-width: calc(100vw - 200px);
-    }
-
-    .rack-sort-btn {
-        width: 44px;
-        min-height: 64px;
-    }
-
-    .rack-sort-btn .sort-text {
-        font-size: 0.62rem;
-    }
-
-    .player-discard {
-        width: 52px;
-        height: 88px;
-    }
-
-    .player-discard .discard-tiles {
-        width: 46px;
-        height: 64px;
-    }
-
-    .meld-groups .opened-sprite {
-        transform: scale(0.62);
-        margin: -12px -9px;
-    }
-
-    .action-buttons {
-        bottom: 210px;
-    }
-
-    .stats-panel {
-        display: none;
+        transform: scale(0.58);
     }
 }
 
-@media (orientation: landscape) and (max-height: 430px) {
-    .table-center.okey-center {
-        top: 36%;
-        height: 46vh;
-    }
-
-    .cue-container {
+/* Normal telefon genişliği */
+@media (min-width: 381px) and (max-width: 430px) {
+    :root {
+        --rack-scale: 0.50;
         --cue-height: 160px;
     }
+}
 
-    .action-buttons {
-        bottom: 168px;
-        transform: scale(0.9);
+/* Büyük telefon / küçük tablet dikey */
+@media (min-width: 431px) and (max-width: 600px) {
+    :root {
+        --rack-scale: 0.58;
+        --cue-height: 180px;
+    }
+}
+
+/* Yatay telefon (landscape) — klasik okey masası */
+@media (orientation: landscape) and (max-height: 500px) {
+    :root {
+        --rack-scale: 0.42;
+        --cue-height: 118px;
+    }
+
+    .table-center.okey-center {
+        top: calc(36px + var(--safe-top)) !important;
+        bottom: calc(var(--cue-height) + 48px + var(--safe-bottom)) !important;
+        flex-direction: row !important;
+        width: calc(100% - 100px) !important;
+        left: 50% !important;
+    }
+
+    .center-stack {
+        width: 70px !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        gap: 4px !important;
+    }
+
+    .center-stack .tile-placeholder,
+    .center-stack .sprite-tile-host,
+    .center-stack .pile-stack {
+        width: 34px;
+        height: 48px;
+    }
+
+    .center-stack .tile-sprite,
+    .center-stack .display-tile {
+        transform: scale(0.64);
     }
 
     .turn-banner {
-        display: none;
+        display: none !important;
+    }
+
+    .action-buttons {
+        bottom: calc(var(--cue-height) + 6px + var(--safe-bottom)) !important;
+        transform: translateX(-50%) scale(0.9) !important;
+    }
+
+    .opponent-area.left {
+        top: 42% !important;
+    }
+
+    .opponent-area.right {
+        top: 42% !important;
+    }
+
+    .meld-groups .opened-sprite,
+    .meld-groups .display-tile {
+        transform: scale(0.40);
+        margin: -18px -14px;
+    }
+}
+
+/* Çok kısa ekran */
+@media (max-height: 620px) and (orientation: portrait) {
+    :root {
+        --cue-height: 150px;
+        --rack-scale: 0.46;
+    }
+
+    .table-center.okey-center {
+        bottom: calc(var(--cue-height) + 78px + var(--safe-bottom)) !important;
     }
 }

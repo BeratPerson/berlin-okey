@@ -8,13 +8,18 @@
     <title>Berlin Okey</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/okey-table.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 
-<body>
+<body class="phone-layout">
+    <script>
+        // Erken telefon sınıfı — FOUC önleme
+        document.documentElement.classList.add('phone-layout');
+    </script>
     <div class="background-animation"></div>
 
-    <div class="container">
+    <div class="container phone-lobby">
         <header class="header">
             <h1 class="logo">
                 <span class="logo-icon">🎴</span>
