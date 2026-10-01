@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: berlin-okey
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: BOT_USERNAME
+        value: Berlinokeybot
+      - key: WEBAPP_URL
+        sync: false
+      - key: BOT_TOKEN
+        sync: false

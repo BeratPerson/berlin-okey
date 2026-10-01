@@ -1,13 +1,21 @@
+require('dotenv').config();
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
 const GameLogic = require('./gameLogic');
 const Logger = require('./logger');
+const { startTelegramBot } = require('./telegramBot');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+    cors: {
+        origin: '*',
+        methods: ['GET', 'POST']
+    }
+});
 
 // Sabit ana oda - 4 arkadaş için
 const MAIN_ROOM = {
@@ -22,6 +30,11 @@ const MAIN_ROOM = {
 // Static dosyalar
 app.use(express.static(path.join(__dirname, '../public')));
 app.use('/asset', express.static(path.join(__dirname, '../asset')));
+
+// Health check (Render)
+app.get('/health', (req, res) => {
+    res.status(200).json({ ok: true, service: 'berlin-okey' });
+});
 
 // Ana sayfa
 app.get('/', (req, res) => {
@@ -831,7 +844,15 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    Logger.title(`🚀 OKEY 101 SUNUCUSU BAŞLATILDI: http://localhost:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+    Logger.title(`🚀 BERLIN OKEY SUNUCUSU: http://0.0.0.0:${PORT}`);
     Logger.info('4 arkadaş için tek oda modu aktif');
+    if (process.env.WEBAPP_URL) {
+        Logger.info(`Mini App URL: ${process.env.WEBAPP_URL}`);
+    } else {
+        Logger.warn('WEBAPP_URL boş — Telegram Mini App butonu çalışmaz (HTTPS URL gerekli)');
+    }
+    startTelegramBot().catch((err) => {
+        Logger.error(`Telegram bot: ${err.message}`);
+    });
 });

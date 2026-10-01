@@ -1,5 +1,11 @@
-// 101 Okey - Oyun JavaScript
-const socket = io();
+// Berlin Okey - Oyun JavaScript (Telegram Mini App)
+const socket = io({
+    transports: ['websocket', 'polling']
+});
+
+if (window.BerlinTelegram) {
+    BerlinTelegram.init();
+}
 
 // Touch vs Mouse detection - only use touch events on real touch devices
 window.actuallyUsingTouch = false;

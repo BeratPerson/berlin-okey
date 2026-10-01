@@ -2306,3 +2306,71 @@ body {
         display: none;
     }
 }
+
+/* ============================================
+   Telegram Mini App
+   ============================================ */
+
+:root {
+    --tg-safe-top: env(safe-area-inset-top, 0px);
+    --tg-safe-bottom: env(safe-area-inset-bottom, 0px);
+    --tg-safe-left: env(safe-area-inset-left, 0px);
+    --tg-safe-right: env(safe-area-inset-right, 0px);
+}
+
+html, body {
+    height: 100%;
+    height: 100dvh;
+}
+
+body.telegram-mini-app {
+    padding-top: var(--tg-safe-top);
+    padding-bottom: var(--tg-safe-bottom);
+    padding-left: var(--tg-safe-left);
+    padding-right: var(--tg-safe-right);
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body.telegram-mini-app .container {
+    max-height: calc(100dvh - var(--tg-safe-top) - var(--tg-safe-bottom));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 24px;
+}
+
+body.telegram-mini-app .game-board,
+body.telegram-mini-app .game-container {
+    height: calc(100dvh - var(--tg-safe-top) - var(--tg-safe-bottom));
+}
+
+body.telegram-mini-app .lobby-overlay {
+    padding-top: calc(12px + var(--tg-safe-top));
+}
+
+.tg-user-badge {
+    margin-top: 8px;
+    font-size: 0.85rem;
+    color: var(--accent);
+    opacity: 0.95;
+}
+
+.tg-user-badge.hidden {
+    display: none;
+}
+
+@media (max-width: 480px) {
+    body.telegram-mini-app .card {
+        padding: 16px;
+    }
+
+    body.telegram-mini-app .btn-large {
+        width: 100%;
+        min-height: 48px;
+    }
+
+    body.telegram-mini-app .avatar-grid.large .avatar-option {
+        width: 64px;
+        height: 64px;
+    }
+}

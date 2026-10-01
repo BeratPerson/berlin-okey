@@ -1,5 +1,7 @@
-// 101 Okey - Ana Sayfa JavaScript (Sadeleştirilmiş)
-const socket = io();
+// Berlin Okey - Ana Sayfa (Telegram Mini App uyumlu)
+const socket = io({
+    transports: ['websocket', 'polling']
+});
 
 socket.on('connect', () => {
     console.log('Socket connected:', socket.id);
@@ -7,7 +9,7 @@ socket.on('connect', () => {
 
 socket.on('connect_error', (err) => {
     console.error('Socket connection error:', err);
-    alert('Sunucuyla bağlantı kurulamadı! Lütfen sayfayı yenileyin veya sunucunun çalıştığından emin olun.');
+    showError('Sunucuyla bağlantı kurulamadı! Lütfen sayfayı yenileyin.');
 });
 
 // DOM Elementleri
@@ -18,10 +20,12 @@ const joinGameBtn = document.getElementById('joinGameBtn');
 const teamModeToggle = document.getElementById('teamModeToggle');
 const stackingModeToggle = document.getElementById('stackingModeToggle');
 const penaltyModeToggle = document.getElementById('penaltyModeToggle');
+const tgUserBadge = document.getElementById('tgUserBadge');
 
 let playerName = '';
 let selectedAvatar = 'alibicim.png';
 let selectedIstaka = 'istaka.jpg';
+let telegramUserId = null;
 
 // Avatar seçimi
 const avatarOptions = document.querySelectorAll('.avatar-option');
@@ -31,6 +35,7 @@ avatarOptions.forEach(option => {
         option.classList.add('selected');
         selectedAvatar = option.dataset.avatar;
         playSound('click');
+        if (window.BerlinTelegram) BerlinTelegram.haptic('light');
     });
 });
 
@@ -42,6 +47,7 @@ istakaOptions.forEach(option => {
         option.classList.add('selected');
         selectedIstaka = option.dataset.istaka;
         playSound('click');
+        if (window.BerlinTelegram) BerlinTelegram.haptic('light');
     });
 });
 
@@ -83,28 +89,51 @@ function playSound(type) {
     }
 }
 
-// Rastgele oyuncu ID oluştur (her sekme için benzersiz)
 function generatePlayerId() {
     return 'Oyuncu' + Math.floor(Math.random() * 9000 + 1000);
 }
 
-// Sayfa yüklendiğinde
 document.addEventListener('DOMContentLoaded', () => {
+    // Telegram Mini App
+    if (window.BerlinTelegram) {
+        BerlinTelegram.init();
+        const tgUser = BerlinTelegram.getUser();
+        if (tgUser) {
+            telegramUserId = tgUser.id;
+            playerName = tgUser.name;
+            if (playerNameInput) {
+                playerNameInput.value = playerName;
+                playerNameInput.placeholder = 'Telegram ismin';
+            }
+            if (tgUserBadge) {
+                tgUserBadge.textContent = tgUser.username
+                    ? `@${tgUser.username} olarak oynuyorsun`
+                    : `${tgUser.firstName} olarak oynuyorsun`;
+                tgUserBadge.classList.remove('hidden');
+            }
+            sessionStorage.setItem('okeyPlayerId', playerName);
+            sessionStorage.setItem('telegramUserId', String(tgUser.id));
+        }
+    }
+
     const savedAvatar = localStorage.getItem('okeyPlayerAvatar');
     const savedName = localStorage.getItem('okeyPlayerName');
 
-    // Kaydedilmiş ismi yükle veya benzersiz ID oluştur
-    if (savedName && savedName.trim()) {
-        playerName = savedName;
-        if (playerNameInput) playerNameInput.value = savedName;
-    } else {
-        // Her sekme için benzersiz ID
-        let savedId = sessionStorage.getItem('okeyPlayerId');
-        if (!savedId) {
-            playerName = generatePlayerId();
-            sessionStorage.setItem('okeyPlayerId', playerName);
+    if (!playerName) {
+        if (savedName && savedName.trim()) {
+            playerName = savedName;
+            if (playerNameInput) playerNameInput.value = savedName;
         } else {
-            playerName = savedId;
+            let savedId = sessionStorage.getItem('okeyPlayerId');
+            if (!savedId) {
+                playerName = generatePlayerId();
+                sessionStorage.setItem('okeyPlayerId', playerName);
+            } else {
+                playerName = savedId;
+            }
+            if (playerNameInput && !playerNameInput.value) {
+                playerNameInput.value = playerName;
+            }
         }
     }
 
@@ -118,7 +147,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Kaydedilmiş istaka seçimi
     const savedIstaka = localStorage.getItem('okeyPlayerIstaka');
     if (savedIstaka) {
         selectedIstaka = savedIstaka;
@@ -131,22 +159,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Oyuna katıl butonuna tıklama
 joinGameBtn.addEventListener('click', () => {
-    console.log('Join button clicked');
     playSound('click');
+    if (window.BerlinTelegram) BerlinTelegram.haptic('light');
 
-    // İsim input'tan al
     const inputName = playerNameInput ? playerNameInput.value.trim() : '';
     if (inputName) {
         playerName = inputName;
         localStorage.setItem('okeyPlayerName', playerName);
     } else {
-        // Boşsa otomatik ID kullan
         playerName = sessionStorage.getItem('okeyPlayerId') || generatePlayerId();
     }
 
-    // Avatar ve istaka'yı kaydet
     localStorage.setItem('okeyPlayerAvatar', selectedAvatar);
     localStorage.setItem('okeyPlayerIstaka', selectedIstaka);
     sessionStorage.setItem('selectedIstaka', selectedIstaka);
@@ -155,23 +179,20 @@ joinGameBtn.addEventListener('click', () => {
     const stackingMode = stackingModeToggle ? stackingModeToggle.checked : false;
     const penaltyMode = penaltyModeToggle ? penaltyModeToggle.checked : false;
 
-    // Direkt sabit odaya katıl
     socket.emit('joinGame', {
         playerName,
         teamMode,
         stackingMode,
         penaltyMode,
-        avatar: selectedAvatar
+        avatar: selectedAvatar,
+        telegramUserId
     });
 });
 
-// Socket Olayları
-
-// Odaya katıldığında
 socket.on('joinedGame', (data) => {
     playSound('success');
+    if (window.BerlinTelegram) BerlinTelegram.haptic('success');
 
-    // Lobi bilgilerini sakla ve game sayfasına yönlendir
     sessionStorage.setItem('lobbyData', JSON.stringify({
         roomCode: 'MAIN',
         teamMode: data.teamMode,
@@ -184,19 +205,17 @@ socket.on('joinedGame', (data) => {
     window.location.href = '/game';
 });
 
-// Oyun başladığında
 socket.on('gameStarted', (data) => {
     sessionStorage.setItem('gameData', JSON.stringify(data));
     sessionStorage.setItem('playerName', playerName);
     window.location.href = '/game';
 });
 
-// Hata
 socket.on('error', (data) => {
     showError(data.message);
+    if (window.BerlinTelegram) BerlinTelegram.haptic('error');
 });
 
-// Hata göster
 function showError(message) {
     const toastMessage = errorToast.querySelector('.toast-message');
     toastMessage.textContent = message;
