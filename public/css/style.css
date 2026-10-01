@@ -1462,6 +1462,56 @@ body {
     transform: translateY(0);
 }
 
+.btn-secondary {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow: none;
+}
+
+.btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+}
+
+.room-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 8px;
+}
+
+.room-join-row {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+}
+
+.room-code-input {
+    flex: 1;
+    letter-spacing: 0.35em;
+    font-family: ui-monospace, monospace;
+    font-weight: 700;
+    margin-bottom: 0 !important;
+}
+
+.room-join-row .btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+    min-width: 130px;
+    width: auto;
+}
+
+@media (max-width: 480px) {
+    .room-join-row {
+        flex-direction: column;
+    }
+
+    .room-join-row .btn {
+        width: 100%;
+    }
+}
+
 /* Toggle Switch (Takım Modu) */
 .team-mode-toggle {
     margin: 25px 0;
