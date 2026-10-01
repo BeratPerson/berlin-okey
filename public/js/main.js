@@ -22,6 +22,7 @@ const errorToast = document.getElementById('errorToast');
 const createRoomBtn = document.getElementById('createRoomBtn');
 const joinRoomBtn = document.getElementById('joinRoomBtn');
 const quickMatchBtn = document.getElementById('quickMatchBtn');
+const botMatchBtn = document.getElementById('botMatchBtn');
 const capacityLine = document.getElementById('capacityLine');
 const teamModeToggle = document.getElementById('teamModeToggle');
 const stackingModeToggle = document.getElementById('stackingModeToggle');
@@ -166,7 +167,7 @@ function saveSelections() {
     if (telegramPhotoUrl) sessionStorage.setItem('telegramPhotoUrl', telegramPhotoUrl);
 }
 
-function emitJoin({ createRoom, roomCode, quickMatch }) {
+function emitJoin({ createRoom, roomCode, quickMatch, withBots }) {
     resolvePlayerName();
     saveSelections();
     playSound('click');
@@ -181,6 +182,7 @@ function emitJoin({ createRoom, roomCode, quickMatch }) {
         playerName,
         createRoom: !!createRoom,
         quickMatch: !!quickMatch,
+        withBots: !!withBots,
         roomCode: roomCode || undefined,
         teamMode: teamModeToggle ? teamModeToggle.checked : false,
         stackingMode: stackingModeToggle ? stackingModeToggle.checked : false,
@@ -263,6 +265,10 @@ document.addEventListener('DOMContentLoaded', () => {
         roomCodeInput.value = roomFromUrl;
     }
 });
+
+if (botMatchBtn) {
+    botMatchBtn.addEventListener('click', () => emitJoin({ withBots: true }));
+}
 
 if (quickMatchBtn) {
     quickMatchBtn.addEventListener('click', () => emitJoin({ quickMatch: true }));

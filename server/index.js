@@ -121,6 +121,7 @@ function publicPlayers(room) {
         index: p.index,
         team: p.team,
         avatar: p.avatar,
+        isBot: !!p.isBot,
         socketId: p.socketId
     }));
 }
@@ -131,7 +132,8 @@ function gamePlayersPayload(room) {
         position: p.position,
         tileCount: room.game ? room.game.getPlayerTiles(i).length : 0,
         team: p.team,
-        avatar: p.avatar
+        avatar: p.avatar,
+        isBot: !!p.isBot
     }));
 }
 
@@ -139,6 +141,10 @@ function clearTurnTimer(room) {
     if (room.turnTimer) {
         clearTimeout(room.turnTimer);
         room.turnTimer = null;
+    }
+    if (room.botTimer) {
+        clearTimeout(room.botTimer);
+        room.botTimer = null;
     }
 }
 
@@ -154,12 +160,40 @@ function emitTurnTimer(room) {
     });
 }
 
+function scheduleBotTurn(room) {
+    if (!room.game || !room.gameStarted) return;
+    const player = room.players[room.game.currentPlayer];
+    if (!player || !player.isBot) return;
+
+    if (room.botTimer) {
+        clearTimeout(room.botTimer);
+        room.botTimer = null;
+    }
+
+    const delay = 700 + Math.floor(Math.random() * 1100);
+    room.botTimer = setTimeout(() => {
+        playAutoTurn(room, { reason: 'bot' }).catch((err) => {
+            Logger.error(`Bot hamle: ${err.message}`);
+        });
+    }, delay);
+}
+
 function beginTurnTimer(room) {
     if (!room.game || !room.gameStarted) return;
     clearTurnTimer(room);
+
+    const current = room.players[room.game.currentPlayer];
+    if (current && current.isBot) {
+        // Bot: kısa süre göstergesi + otomatik hamle
+        room.turnEndsAt = Date.now() + 3 * 1000;
+        emitTurnTimer(room);
+        scheduleBotTurn(room);
+        return;
+    }
+
     room.turnEndsAt = Date.now() + TURN_SECONDS * 1000;
     room.turnTimer = setTimeout(() => {
-        handleTurnTimeout(room).catch((err) => {
+        playAutoTurn(room, { reason: 'timeout' }).catch((err) => {
             Logger.error(`Tur zaman aşımı: ${err.message}`);
         });
     }, TURN_SECONDS * 1000);
@@ -170,7 +204,6 @@ function pickAutoDiscardIndex(room, playerIndex) {
     const tiles = room.game.playerTiles[playerIndex];
     if (!tiles || tiles.length === 0) return -1;
 
-    // Önce okey olmayanlardan rastgele; yoksa herhangi birinden rastgele
     const nonOkeyIndices = [];
     for (let i = 0; i < tiles.length; i++) {
         if (!room.game.isOkey(tiles[i])) nonOkeyIndices.push(i);
@@ -216,14 +249,16 @@ function applyDiscardAndAdvance(room, playerIndex, tileIndex, { isPlayableTile =
     return { ok: true, tile: discardedTile };
 }
 
-async function handleTurnTimeout(room) {
+async function playAutoTurn(room, { reason = 'timeout' } = {}) {
     if (!room.game || !room.gameStarted) return;
 
     const playerIndex = room.game.currentPlayer;
     const player = room.players[playerIndex];
     if (!player) return;
 
-    Logger.warn(`⏱️ Süre doldu: ${player.name} (oda ${room.code})`);
+    if (reason === 'timeout') {
+        Logger.warn(`⏱️ Süre doldu: ${player.name} (oda ${room.code})`);
+    }
 
     if (!room.game.hasDrawn) {
         const tile = room.game.drawFromPile(playerIndex);
@@ -268,10 +303,16 @@ async function handleTurnTimeout(room) {
         return;
     }
 
-    io.to(room.code).emit('turnTimeout', {
-        playerIndex,
-        playerName: player.name
-    });
+    if (reason === 'timeout') {
+        io.to(room.code).emit('turnTimeout', {
+            playerIndex,
+            playerName: player.name
+        });
+    }
+}
+
+async function handleTurnTimeout(room) {
+    return playAutoTurn(room, { reason: 'timeout' });
 }
 
 function startGame(room) {
@@ -333,7 +374,8 @@ io.on('connection', (socket) => {
             telegramUserId,
             roomCode: rawCode,
             createRoom,
-            quickMatch
+            quickMatch,
+            withBots
         } = data || {};
 
         if (!playerName || !String(playerName).trim()) {
@@ -355,10 +397,28 @@ io.on('connection', (socket) => {
             stackingMode: !!stackingMode,
             penaltyMode: !!penaltyMode
         };
+        const wantBots = withBots === true;
 
         roomManager.cleanupEmptyRooms();
 
-        if (quickMatch === true) {
+        if (wantBots) {
+            // 1 insan + 3 bot — özel pratik masası
+            if (roomManager.countActivePlayers() + 4 > roomManager.MAX_CONCURRENT_PLAYERS) {
+                socket.emit('error', { message: 'Sunucu dolu. Biraz sonra dene.' });
+                return;
+            }
+            if (!roomManager.canCreateRoom()) {
+                socket.emit('error', { message: 'Sunucu dolu. Biraz sonra dene.' });
+                return;
+            }
+            room = roomManager.createRoom({ ...modes, publicMatch: false });
+            if (!room) {
+                socket.emit('error', { message: 'Bot masası açılamadı.' });
+                return;
+            }
+            room.botTable = true;
+            Logger.room(`Bot masası: ${room.code}`);
+        } else if (quickMatch === true) {
             if (!roomManager.canAcceptPlayer()) {
                 socket.emit('error', {
                     message: `Sunucu dolu! Şu an ${roomManager.MAX_CONCURRENT_PLAYERS} oyuncu limiti dolu. Biraz sonra dene.`
@@ -486,6 +546,10 @@ io.on('connection', (socket) => {
         const player = roomManager.addPlayer(room, socket.id, name, avatarName, tgId);
         attachPlayerToSocket(socket, room, name, avatarName);
 
+        if (wantBots || room.botTable) {
+            roomManager.fillBots(room, 3);
+        }
+
         const updatedPlayers = publicPlayers(room);
 
         socket.emit('joinedGame', {
@@ -495,7 +559,8 @@ io.on('connection', (socket) => {
             teamMode: room.teamMode,
             stackingMode: room.stackingMode,
             penaltyMode: room.penaltyMode,
-            capacity: roomManager.getCapacity()
+            capacity: roomManager.getCapacity(),
+            withBots: !!(wantBots || room.botTable)
         });
 
         socket.to(room.code).emit('playerJoined', {
@@ -504,7 +569,6 @@ io.on('connection', (socket) => {
             teamMode: room.teamMode
         });
 
-        // Kapasite bilgisini herkese (isteğe bağlı istemciler)
         io.emit('capacityUpdate', roomManager.getCapacity());
 
         Logger.room(`${name} → oda ${room.code} (${updatedPlayers.length}/4) | sunucu ${roomManager.countActivePlayers()}/${roomManager.MAX_CONCURRENT_PLAYERS}`);

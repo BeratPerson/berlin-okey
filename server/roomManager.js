@@ -146,6 +146,7 @@ class RoomManager {
             team: room.teamMode ? (active.length % 2 === 0 ? 1 : 2) : null,
             avatar: avatar || '',
             telegramUserId: telegramUserId ? String(telegramUserId) : null,
+            isBot: false,
             disconnected: false,
             disconnectTime: null
         };
@@ -154,6 +155,44 @@ class RoomManager {
             room.scores[playerName] = room.scores[playerName] || 0;
         }
         return player;
+    }
+
+    addBot(room, name) {
+        const active = this.getActivePlayers(room);
+        if (active.length >= this.PLAYERS_PER_TABLE) return null;
+        const positions = ['bottom', 'right', 'top', 'left'];
+        const botName = name || `Bot ${active.length + 1}`;
+        const player = {
+            socketId: `bot-${room.code}-${active.length}-${Date.now()}`,
+            name: botName,
+            position: positions[active.length],
+            index: active.length,
+            team: room.teamMode ? (active.length % 2 === 0 ? 1 : 2) : null,
+            avatar: '',
+            telegramUserId: null,
+            isBot: true,
+            disconnected: false,
+            disconnectTime: null
+        };
+        room.players.push(player);
+        if (!room.teamMode) {
+            room.scores[botName] = room.scores[botName] || 0;
+        }
+        return player;
+    }
+
+    fillBots(room, count = 3) {
+        const botNames = ['Bot Ali', 'Bot Deniz', 'Bot Ege', 'Bot Can'];
+        const added = [];
+        let i = 0;
+        while (this.getActivePlayers(room).length < this.PLAYERS_PER_TABLE && added.length < count) {
+            const bot = this.addBot(room, botNames[i % botNames.length] + (i >= botNames.length ? String(i) : ''));
+            i += 1;
+            if (!bot) break;
+            added.push(bot);
+        }
+        this.updatePlayerPositions(room);
+        return added;
     }
 
     deleteRoom(code) {
