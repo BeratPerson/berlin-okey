@@ -246,7 +246,7 @@ function attachPlayerToSocket(socket, room, playerName, avatar) {
     socket.join(room.code);
     socket.roomCode = room.code;
     socket.playerName = playerName;
-    socket.avatar = avatar || 'alibicim.png';
+    socket.avatar = avatar || 'p-amber';
 }
 
 io.on('connection', (socket) => {
@@ -270,7 +270,7 @@ io.on('connection', (socket) => {
         }
 
         const name = String(playerName).trim().slice(0, 15);
-        const avatarName = avatar || 'alibicim.png';
+        const avatarName = avatar || 'p-amber';
         let room = null;
         const joinCode = roomManager.normalizeCode(rawCode);
 
@@ -431,8 +431,8 @@ io.on('connection', (socket) => {
                 return;
             }
 
-            const newPlayer = roomManager.addPlayer(room, socket.id, playerName, 'alibicim.png');
-            attachPlayerToSocket(socket, room, playerName, 'alibicim.png');
+            const newPlayer = roomManager.addPlayer(room, socket.id, playerName, 'p-amber');
+            attachPlayerToSocket(socket, room, playerName, 'p-amber');
 
             io.to(room.code).emit('playerJoined', {
                 player: newPlayer,

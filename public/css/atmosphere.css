@@ -1,0 +1,560 @@
+/* ============================================
+   Berlin Okey — Atmosfer, menü, profil kartları
+   ============================================ */
+
+:root {
+    --ink: #07130f;
+    --deep: #0c1a14;
+    --felt: #1a5c45;
+    --felt-mid: #247a5a;
+    --felt-edge: #0d3326;
+    --amber: #e8b84a;
+    --amber-deep: #c4891a;
+    --cream: #f3e6c8;
+    --glass: rgba(10, 24, 18, 0.72);
+    --glass-border: rgba(232, 184, 74, 0.22);
+    --text-primary: #f7f1e6;
+    --text-secondary: rgba(243, 230, 200, 0.72);
+    --accent: #e8b84a;
+    --font-display: 'Fraunces', Georgia, serif;
+    --font-ui: 'Sora', system-ui, sans-serif;
+
+    --p-amber: #e8b84a;
+    --p-teal: #2dd4bf;
+    --p-coral: #fb7185;
+    --p-sky: #38bdf8;
+    --p-lime: #a3e635;
+    --p-rose: #f472b6;
+}
+
+body {
+    font-family: var(--font-ui);
+    background: var(--deep);
+    color: var(--text-primary);
+}
+
+/* ---- Ana menü atmosfer (görselsiz) ---- */
+.menu-atmosphere {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(232, 184, 74, 0.22), transparent 55%),
+        radial-gradient(ellipse 70% 45% at 100% 80%, rgba(36, 122, 90, 0.35), transparent 50%),
+        radial-gradient(ellipse 60% 40% at 0% 70%, rgba(45, 212, 191, 0.12), transparent 45%),
+        linear-gradient(165deg, #0f241c 0%, #0a1612 45%, #07130f 100%);
+    animation: menuShift 14s ease-in-out infinite alternate;
+}
+
+.menu-atmosphere::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(243, 230, 200, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(243, 230, 200, 0.03) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse at center, black 20%, transparent 75%);
+    opacity: 0.5;
+}
+
+@keyframes menuShift {
+    from { filter: hue-rotate(0deg) brightness(1); }
+    to { filter: hue-rotate(8deg) brightness(1.05); }
+}
+
+@keyframes riseIn {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes brandShine {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+}
+
+.lobby-page .container,
+.lobby-page .phone-lobby {
+    position: relative;
+    z-index: 2;
+}
+
+.lobby-hero {
+    margin-bottom: 14px !important;
+    animation: riseIn 0.65s ease both;
+}
+
+.brand-mark {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin-bottom: 8px;
+}
+
+.lobby-hero .logo {
+    display: block;
+    font-family: var(--font-display);
+    font-size: clamp(2.35rem, 9vw, 3.2rem);
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+}
+
+.lobby-hero .logo-text {
+    background: linear-gradient(105deg, #fff8e8 0%, #e8b84a 45%, #fff1c9 75%, #e8b84a 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: brandShine 8s ease-in-out infinite;
+}
+
+.lobby-hero .tagline {
+    margin-top: 10px;
+    color: rgba(243, 230, 200, 0.75);
+    font-size: 0.92rem;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+}
+
+.lobby-panel {
+    background: var(--glass) !important;
+    border: 1px solid var(--glass-border) !important;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+    animation: riseIn 0.7s ease 0.08s both;
+    padding-top: 20px !important;
+}
+
+/* Profil önizleme */
+.profile-preview {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 18px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(232, 184, 74, 0.15);
+    text-align: left;
+}
+
+.profile-preview-avatar,
+.profile-face,
+.lobby-profile-face {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.35rem;
+    color: #0c1a14;
+    flex-shrink: 0;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+    background: var(--p-amber);
+}
+
+.profile-preview-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.profile-preview-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(232, 184, 74, 0.8);
+    font-weight: 600;
+}
+
+.profile-preview-name {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--cream);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.lobby-panel .section-label {
+    color: rgba(232, 184, 74, 0.85);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.lobby-panel .name-input {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(243, 230, 200, 0.16);
+    border-radius: 14px;
+}
+
+.lobby-panel .name-input:focus {
+    border-color: var(--amber);
+    box-shadow: 0 0 0 3px rgba(232, 184, 74, 0.16);
+}
+
+/* Renk swatchları */
+.profile-swatches {
+    display: grid !important;
+    grid-template-columns: repeat(6, 1fr) !important;
+    gap: 10px !important;
+    margin-bottom: 18px !important;
+}
+
+.profile-swatch {
+    aspect-ratio: 1;
+    width: 100%;
+    border: 2px solid transparent;
+    border-radius: 50% !important;
+    cursor: pointer;
+    padding: 0;
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+
+.profile-swatch[data-avatar="p-amber"] { background: var(--p-amber); }
+.profile-swatch[data-avatar="p-teal"] { background: var(--p-teal); }
+.profile-swatch[data-avatar="p-coral"] { background: var(--p-coral); }
+.profile-swatch[data-avatar="p-sky"] { background: var(--p-sky); }
+.profile-swatch[data-avatar="p-lime"] { background: var(--p-lime); }
+.profile-swatch[data-avatar="p-rose"] { background: var(--p-rose); }
+
+.profile-swatch:hover { transform: scale(1.08); }
+.profile-swatch.selected {
+    border-color: #fff;
+    box-shadow: 0 0 0 3px rgba(232, 184, 74, 0.45), 0 6px 14px rgba(0, 0, 0, 0.35);
+}
+
+.istaka-swatches {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.istaka-swatch {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    height: auto !important;
+    min-height: 56px;
+    border-radius: 12px !important;
+    overflow: hidden;
+    border: 2px solid transparent;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 0;
+    cursor: pointer;
+}
+
+.istaka-swatch-tone {
+    flex: 1;
+    min-height: 28px;
+}
+
+.istaka-swatch-tone.wood {
+    background: linear-gradient(90deg, #6b4423, #a67c52, #5c3a21);
+}
+
+.istaka-swatch-tone.rosewood {
+    background: linear-gradient(90deg, #7a2e4a, #c46b8a, #5a2038);
+}
+
+.istaka-swatch .istaka-label {
+    position: static !important;
+    background: transparent !important;
+    padding: 6px !important;
+    font-size: 0.75rem;
+    color: var(--cream);
+}
+
+.istaka-swatch.selected {
+    border-color: var(--amber);
+    box-shadow: 0 0 0 2px rgba(232, 184, 74, 0.25);
+}
+
+/* Kural chip'leri */
+.rules-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 12px 0 16px;
+    justify-content: center;
+}
+
+.rule-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--cream);
+    cursor: pointer;
+    user-select: none;
+}
+
+.rule-chip input {
+    accent-color: var(--amber);
+    width: 14px;
+    height: 14px;
+}
+
+.lobby-panel .btn-primary {
+    background: linear-gradient(135deg, #f0c75a 0%, #c4891a 100%);
+    color: #1a1206;
+    border-radius: 14px;
+    box-shadow: 0 8px 22px rgba(196, 137, 26, 0.32);
+}
+
+.lobby-panel .btn-secondary {
+    background: rgba(243, 230, 200, 0.08);
+    border: 1px solid rgba(243, 230, 200, 0.25);
+    border-radius: 14px;
+    color: var(--cream);
+}
+
+.tg-user-badge {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(232, 184, 74, 0.12);
+    border: 1px solid rgba(232, 184, 74, 0.28);
+    color: var(--cream);
+    font-size: 0.78rem;
+}
+
+/* ---- Lobi ---- */
+.lobby-overlay {
+    background: transparent !important;
+    backdrop-filter: none !important;
+}
+
+.lobby-atmosphere {
+    z-index: 0;
+}
+
+.lobby-overlay .lobby-container {
+    position: relative;
+    z-index: 2;
+    background: rgba(8, 22, 16, 0.82) !important;
+    border: 1px solid rgba(232, 184, 74, 0.22) !important;
+    backdrop-filter: blur(18px);
+    animation: riseIn 0.5s ease both;
+}
+
+.lobby-header h1 {
+    font-family: var(--font-display) !important;
+    font-size: 1.75rem !important;
+    background: none !important;
+    -webkit-text-fill-color: var(--cream) !important;
+    color: var(--cream) !important;
+}
+
+.lobby-room-code-value {
+    font-family: var(--font-ui) !important;
+    color: var(--amber) !important;
+}
+
+.lobby-team-badge {
+    background: linear-gradient(135deg, #2a6b52, #1a5c45) !important;
+}
+
+.lobby-players-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.lobby-player-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 10px !important;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    min-height: 100px;
+}
+
+.lobby-player-slot.empty .lobby-profile-face {
+    opacity: 0.35;
+    filter: grayscale(0.6);
+}
+
+.lobby-player-slot.filled {
+    border-color: rgba(232, 184, 74, 0.4);
+    box-shadow: 0 0 18px rgba(232, 184, 74, 0.1);
+}
+
+.lobby-profile-face {
+    width: 48px;
+    height: 48px;
+    font-size: 1.2rem;
+}
+
+.lobby-player-slot .player-name {
+    font-size: 0.85rem !important;
+    font-weight: 600;
+    max-width: 100%;
+    text-align: center;
+}
+
+/* ---- Masada profil kartları ---- */
+.profile-face[data-profile="p-amber"],
+.lobby-profile-face[data-profile="p-amber"],
+.profile-preview-avatar[data-profile="p-amber"] { background: var(--p-amber); }
+
+.profile-face[data-profile="p-teal"],
+.lobby-profile-face[data-profile="p-teal"],
+.profile-preview-avatar[data-profile="p-teal"] { background: var(--p-teal); }
+
+.profile-face[data-profile="p-coral"],
+.lobby-profile-face[data-profile="p-coral"],
+.profile-preview-avatar[data-profile="p-coral"] { background: var(--p-coral); }
+
+.profile-face[data-profile="p-sky"],
+.lobby-profile-face[data-profile="p-sky"],
+.profile-preview-avatar[data-profile="p-sky"] { background: var(--p-sky); }
+
+.profile-face[data-profile="p-lime"],
+.lobby-profile-face[data-profile="p-lime"],
+.profile-preview-avatar[data-profile="p-lime"] { background: var(--p-lime); }
+
+.profile-face[data-profile="p-rose"],
+.lobby-profile-face[data-profile="p-rose"],
+.profile-preview-avatar[data-profile="p-rose"] { background: var(--p-rose); }
+
+.seat-profile {
+    display: flex !important;
+    align-items: center;
+    gap: 8px !important;
+    padding: 6px 10px 6px 6px !important;
+    border-radius: 18px !important;
+    background: rgba(6, 20, 14, 0.82) !important;
+    border: 1px solid rgba(232, 184, 74, 0.28) !important;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+    max-width: min(46vw, 168px);
+}
+
+.seat-profile .avatar-wrapper {
+    width: 40px !important;
+    height: 40px !important;
+    flex-shrink: 0;
+}
+
+.seat-profile .profile-face {
+    width: 100%;
+    height: 100%;
+    font-size: 1.05rem;
+    border-width: 2px;
+}
+
+.seat-profile .player-details {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.seat-profile .player-name {
+    font-size: 0.78rem !important;
+    font-weight: 700;
+    max-width: 96px;
+    color: var(--cream) !important;
+}
+
+.seat-profile .player-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.seat-profile .tile-count-badge {
+    font-size: 0.65rem !important;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(243, 230, 200, 0.85);
+}
+
+.seat-profile .player-score {
+    font-size: 0.65rem !important;
+    font-weight: 700;
+    color: var(--amber) !important;
+}
+
+.seat-profile.current-turn,
+.seat-profile.my-turn {
+    border-color: var(--amber) !important;
+    box-shadow: 0 0 0 2px rgba(232, 184, 74, 0.35), 0 8px 22px rgba(0, 0, 0, 0.4);
+}
+
+.seat-profile .player-avatar.hidden {
+    display: none !important;
+}
+
+.player-info.self.seat-profile {
+    top: -42px !important;
+    right: 6px !important;
+    z-index: 36;
+}
+
+/* Oyun masası keçe */
+.game-board {
+    background:
+        radial-gradient(ellipse 90% 70% at 50% 42%, rgba(46, 140, 100, 0.5) 0%, transparent 70%),
+        radial-gradient(ellipse at center, var(--felt-mid) 0%, var(--felt) 42%, var(--felt-edge) 78%, #061510 100%) !important;
+    box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.55) !important;
+}
+
+.game-board::before {
+    background-image:
+        url("data:image/svg+xml,%3Csvg width='6' height='6' viewBox='0 0 6 6' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='1' cy='1' r='1' fill='%23ffffff' fill-opacity='0.035'/%3E%3C/svg%3E") !important;
+    background-size: 6px 6px !important;
+    opacity: 1 !important;
+}
+
+.game-board::after {
+    display: none !important;
+}
+
+.meld-board {
+    background: rgba(6, 28, 20, 0.72) !important;
+    border: 1px solid rgba(232, 184, 74, 0.2) !important;
+}
+
+.game-status-panel {
+    background: rgba(8, 22, 16, 0.78) !important;
+    border: 1px solid rgba(232, 184, 74, 0.2) !important;
+}
+
+.turn-banner {
+    background: rgba(8, 22, 16, 0.88) !important;
+    border: 1px solid rgba(232, 184, 74, 0.35) !important;
+    color: var(--cream) !important;
+    border-radius: 999px !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .menu-atmosphere,
+    .lobby-hero .logo-text {
+        animation: none !important;
+    }
+}

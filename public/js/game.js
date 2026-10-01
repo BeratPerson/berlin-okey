@@ -264,24 +264,32 @@ function updateLobbyPlayers(players, teamMode) {
 
     playerCount.textContent = `(${players.length}/4)`;
 
-    // Önce tüm slotları temizle
     slots.forEach(slot => {
         slot.classList.remove('filled', 'team1', 'team2');
         slot.classList.add('empty');
-        slot.querySelector('.player-name').textContent = 'Bekleniyor...';
+        const nameEl = slot.querySelector('.player-name');
+        const faceEl = slot.querySelector('.lobby-profile-face');
+        if (nameEl) nameEl.textContent = 'Bekleniyor...';
+        if (faceEl) {
+            faceEl.textContent = '?';
+            faceEl.dataset.profile = 'p-amber';
+        }
     });
 
-    // Oyuncuları yerleştir
     players.forEach((player, index) => {
         const slot = slots[index];
-        if (slot) {
-            slot.classList.remove('empty');
-            slot.classList.add('filled');
-            slot.querySelector('.player-name').textContent = player.name;
-
-            if (teamMode && player.team) {
-                slot.classList.add(`team${player.team}`);
-            }
+        if (!slot) return;
+        slot.classList.remove('empty');
+        slot.classList.add('filled');
+        const nameEl = slot.querySelector('.player-name');
+        const faceEl = slot.querySelector('.lobby-profile-face');
+        if (nameEl) nameEl.textContent = player.name;
+        if (faceEl) {
+            faceEl.textContent = getPlayerInitial(player.name);
+            faceEl.dataset.profile = resolveProfileKey(player.avatar, player.name);
+        }
+        if (teamMode && player.team) {
+            slot.classList.add(`team${player.team}`);
         }
     });
 }
@@ -302,12 +310,12 @@ function connectToLobby(data) {
     lobbyCopyBtn.onclick = async () => {
         try {
             await navigator.clipboard.writeText(data.roomCode);
-            lobbyCopyBtn.innerHTML = '✅ Kopyalandı!';
+            lobbyCopyBtn.innerHTML = 'Kopyalandı';
         } catch (_) {
             lobbyCopyBtn.innerHTML = data.roomCode;
         }
         setTimeout(() => {
-            lobbyCopyBtn.innerHTML = '📋 Kopyala';
+            lobbyCopyBtn.innerHTML = 'Kopyala';
         }, 2000);
     };
 
@@ -329,9 +337,9 @@ function connectToLobby(data) {
             }
             try {
                 await navigator.clipboard.writeText(inviteText);
-                lobbyShareBtn.innerHTML = '✅ Davet kopyalandı';
+                lobbyShareBtn.innerHTML = 'Davet kopyalandı';
                 setTimeout(() => {
-                    lobbyShareBtn.innerHTML = '📤 Davet Et';
+                    lobbyShareBtn.innerHTML = 'Davet Et';
                 }, 2000);
             } catch (_) {
                 showToast('Kod: ' + data.roomCode, 'success');
@@ -611,16 +619,22 @@ function updateLeftDiscardDisplay(tile) {
 }
 
 // Oyuncuları göster
+const PROFILE_KEYS = ['p-amber', 'p-teal', 'p-coral', 'p-sky', 'p-lime', 'p-rose'];
+
+function getPlayerInitial(name) {
+    const t = (name || '?').trim();
+    return (t.charAt(0) || '?').toUpperCase();
+}
+
+function resolveProfileKey(avatar, name) {
+    if (PROFILE_KEYS.includes(avatar)) return avatar;
+    const str = String(name || avatar || 'x');
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) hash = (hash + str.charCodeAt(i) * (i + 1)) % PROFILE_KEYS.length;
+    return PROFILE_KEYS[hash];
+}
+
 function updatePlayersDisplay() {
-    const positions = ['bottom', 'right', 'top', 'left'];
-    const displayOrder = [];
-
-    // Oyuncuyu alta koy, diğerlerini saat yönünde sırala
-    for (let i = 0; i < 4; i++) {
-        const playerPos = (gameState.playerIndex + i) % 4;
-        displayOrder.push(playerPos);
-    }
-
     const positionMap = {
         0: 'bottom',
         1: 'right',
@@ -632,25 +646,37 @@ function updatePlayersDisplay() {
         const relativePos = (index - gameState.playerIndex + 4) % 4;
         const displayPos = positionMap[relativePos];
 
-        console.log(`[DEBUG] Rendering Player: ${player.name} (Index: ${index}) at ${displayPos}`);
-
         const nameEl = document.getElementById(`${displayPos}PlayerName`);
         const countEl = document.getElementById(`${displayPos}TileCount`);
+        const scoreEl = document.getElementById(`${displayPos}PlayerScore`);
         const infoEl = document.getElementById(`${displayPos}PlayerInfo`);
+        const faceEl = document.getElementById(`${displayPos}PlayerFace`);
         const avatarEl = document.getElementById(`${displayPos}PlayerAvatar`);
 
-        if (nameEl) {
-            nameEl.textContent = relativePos === 0 ? 'Sen' : player.name;
-        }
+        const displayName = relativePos === 0 ? 'Sen' : player.name;
+        const profileKey = resolveProfileKey(player.avatar, player.name);
+
+        if (nameEl) nameEl.textContent = displayName;
         if (countEl) {
             countEl.textContent = player.tileCount || (relativePos === 0 ? gameState.tiles.length : 21);
         }
-        if (infoEl && gameState.teamMode && player.team) {
-            infoEl.classList.add(`team${player.team}`);
+        if (scoreEl) {
+            const score = gameState.scores ? (gameState.scores[player.name] ?? 0) : 0;
+            scoreEl.textContent = score;
         }
-        if (avatarEl && player.avatar) {
-            avatarEl.src = `asset/avatars/${player.avatar}`;
-            avatarEl.style.display = 'block';
+        if (infoEl) {
+            infoEl.classList.remove('team1', 'team2');
+            if (gameState.teamMode && player.team) {
+                infoEl.classList.add(`team${player.team}`);
+            }
+        }
+        if (faceEl) {
+            faceEl.textContent = getPlayerInitial(relativePos === 0 ? (player.name || 'S') : player.name);
+            faceEl.dataset.profile = profileKey;
+        }
+        if (avatarEl) {
+            avatarEl.classList.add('hidden');
+            avatarEl.style.display = 'none';
         }
     });
 }

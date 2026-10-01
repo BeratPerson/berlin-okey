@@ -4,34 +4,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="theme-color" content="#0f172a">
+    <meta name="theme-color" content="#0c1a14">
     <title>Berlin Okey</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/okey-table.css">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/atmosphere.css">
 </head>
 
-<body class="phone-layout">
-    <script>
-        // Erken telefon sınıfı — FOUC önleme
-        document.documentElement.classList.add('phone-layout');
-    </script>
-    <div class="background-animation"></div>
+<body class="phone-layout lobby-page">
+    <script>document.documentElement.classList.add('phone-layout');</script>
+
+    <div class="menu-atmosphere" aria-hidden="true"></div>
 
     <div class="container phone-lobby">
-        <header class="header">
-            <h1 class="logo">
-                <span class="logo-icon">🎴</span>
-                <span class="logo-text">Berlin Okey</span>
-            </h1>
-            <p class="tagline">6 haneli kodla arkadaşlarını davet et</p>
+        <header class="header lobby-hero">
+            <p class="brand-mark">Online 101</p>
+            <h1 class="logo"><span class="logo-text">Berlin Okey</span></h1>
+            <p class="tagline">Altı haneli kodla masaya otur</p>
             <p id="tgUserBadge" class="tg-user-badge hidden"></p>
         </header>
 
-        <section id="nameSection" class="card">
-            <h2>🎮 Hoş Geldin!</h2>
-            <p class="welcome-text">İsmini yaz, avatarını seç — oda oluştur veya koda katıl</p>
+        <section id="nameSection" class="card lobby-panel">
+            <div class="profile-preview" id="profilePreview">
+                <div class="profile-preview-avatar" id="profilePreviewAvatar" data-profile="p-amber">B</div>
+                <div class="profile-preview-meta">
+                    <span class="profile-preview-label">Profilin</span>
+                    <span class="profile-preview-name" id="profilePreviewName">Oyuncu</span>
+                </div>
+            </div>
 
             <div class="name-input-container">
                 <input type="text" id="playerNameInput" class="name-input" placeholder="İsmini yaz..." maxlength="15"
@@ -39,78 +43,59 @@
             </div>
 
             <div class="avatar-selection">
-                <p class="section-label">Avatarını Seç:</p>
-                <div class="avatar-grid large">
-                    <div class="avatar-option selected" data-avatar="alibicim.png">
-                        <img src="asset/avatars/alibicim.png" alt="Avatar 1">
-                    </div>
-                    <div class="avatar-option" data-avatar="egefitness.png">
-                        <img src="asset/avatars/egefitness.png" alt="Avatar 2">
-                    </div>
-                    <div class="avatar-option" data-avatar="james.jpg">
-                        <img src="asset/avatars/james.jpg" alt="Avatar 3">
-                    </div>
-                    <div class="avatar-option" data-avatar="lvblc5.jpg">
-                        <img src="asset/avatars/lvblc5.jpg" alt="Avatar 4">
-                    </div>
+                <p class="section-label">Profil rengi</p>
+                <div class="avatar-grid profile-swatches">
+                    <button type="button" class="avatar-option profile-swatch selected" data-avatar="p-amber" aria-label="Amber"></button>
+                    <button type="button" class="avatar-option profile-swatch" data-avatar="p-teal" aria-label="Teal"></button>
+                    <button type="button" class="avatar-option profile-swatch" data-avatar="p-coral" aria-label="Coral"></button>
+                    <button type="button" class="avatar-option profile-swatch" data-avatar="p-sky" aria-label="Sky"></button>
+                    <button type="button" class="avatar-option profile-swatch" data-avatar="p-lime" aria-label="Lime"></button>
+                    <button type="button" class="avatar-option profile-swatch" data-avatar="p-rose" aria-label="Rose"></button>
                 </div>
             </div>
 
             <div class="istaka-selection">
-                <p class="section-label">Istaka Rengini Seç:</p>
-                <div class="istaka-grid">
-                    <div class="istaka-option selected" data-istaka="istaka.jpg" title="Klasik Ahşap">
-                        <img src="asset/istaka.jpg" alt="Klasik">
+                <p class="section-label">Istaka</p>
+                <div class="istaka-grid istaka-swatches">
+                    <button type="button" class="istaka-option istaka-swatch selected" data-istaka="istaka.jpg">
+                        <span class="istaka-swatch-tone wood"></span>
                         <span class="istaka-label">Klasik</span>
-                    </div>
-                    <div class="istaka-option" data-istaka="istaka_pembe.jpg" title="Pembe">
-                        <img src="asset/istaka_pembe.jpg" alt="Pembe">
+                    </button>
+                    <button type="button" class="istaka-option istaka-swatch" data-istaka="istaka_pembe.jpg">
+                        <span class="istaka-swatch-tone rosewood"></span>
                         <span class="istaka-label">Pembe</span>
-                    </div>
+                    </button>
                 </div>
             </div>
 
-            <div class="team-mode-toggle">
-                <label class="toggle-label">
+            <div class="rules-row">
+                <label class="rule-chip">
                     <input type="checkbox" id="teamModeToggle">
-                    <span class="toggle-slider"></span>
-                    <span class="toggle-text">Takım Modu</span>
+                    <span>Takım</span>
                 </label>
-                <p class="toggle-info">Karşılıklı oturanlar aynı takımda (oda kurarken)</p>
-            </div>
-
-            <div class="team-mode-toggle">
-                <label class="toggle-label">
+                <label class="rule-chip">
                     <input type="checkbox" id="stackingModeToggle">
-                    <span class="toggle-slider"></span>
-                    <span class="toggle-text">Katlamalı Açma</span>
+                    <span>Katlamalı</span>
                 </label>
-                <p class="toggle-info">Sonraki oyuncu daha yüksek puanla açmalı</p>
-            </div>
-
-            <div class="team-mode-toggle">
-                <label class="toggle-label">
+                <label class="rule-chip">
                     <input type="checkbox" id="penaltyModeToggle">
-                    <span class="toggle-slider"></span>
-                    <span class="toggle-text">Cezalı Oyun</span>
+                    <span>Cezalı</span>
                 </label>
-                <p class="toggle-info">Ek ceza kuralları aktif</p>
             </div>
 
             <div class="room-actions">
-                <button id="createRoomBtn" class="btn btn-primary btn-large">➕ Oda Oluştur</button>
-
+                <button id="createRoomBtn" class="btn btn-primary btn-large">Oda Oluştur</button>
                 <div class="room-join-row">
                     <input type="text" id="roomCodeInput" class="name-input room-code-input"
                         placeholder="6 haneli kod" maxlength="6" inputmode="numeric" pattern="[0-9]*"
                         autocomplete="off">
-                    <button id="joinRoomBtn" class="btn btn-secondary btn-large">🚪 Koda Katıl</button>
+                    <button id="joinRoomBtn" class="btn btn-secondary btn-large">Katıl</button>
                 </div>
             </div>
         </section>
 
         <div id="errorToast" class="toast hidden">
-            <span class="toast-icon">⚠️</span>
+            <span class="toast-icon">!</span>
             <span class="toast-message"></span>
         </div>
     </div>

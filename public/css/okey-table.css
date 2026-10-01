@@ -53,7 +53,7 @@ body.telegram-mini-app,
     position: absolute !important;
     inset: 0;
     background:
-        radial-gradient(ellipse at center, #1e5a8a 0%, #0c2d4a 55%, #081828 100%) !important;
+        radial-gradient(ellipse at center, #2a7a5c 0%, #1a5c45 45%, #0d3326 100%) !important;
 }
 
 .game-board::before {
@@ -272,34 +272,34 @@ body.telegram-mini-app,
 }
 
 .player-info {
-    padding: 4px 8px !important;
-    gap: 6px !important;
-    border-radius: 999px !important;
-    max-width: 42vw;
+    padding: 6px 10px 6px 6px !important;
+    gap: 8px !important;
+    border-radius: 18px !important;
+    max-width: min(46vw, 168px);
 }
 
 .player-info .avatar-wrapper {
-    width: 28px !important;
-    height: 28px !important;
+    width: 40px !important;
+    height: 40px !important;
 }
 
 .player-name {
-    font-size: 0.7rem !important;
+    font-size: 0.78rem !important;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 72px;
+    max-width: 96px;
 }
 
 .tile-count-badge,
 .player-score {
-    font-size: 0.62rem !important;
+    font-size: 0.65rem !important;
 }
 
 .player-info.self {
     position: absolute !important;
-    top: -34px !important;
-    right: 4px !important;
+    top: -42px !important;
+    right: 6px !important;
     bottom: auto !important;
     left: auto !important;
     transform: none !important;
@@ -494,7 +494,7 @@ body.phone-layout .container {
 }
 
 body.phone-layout .logo {
-    font-size: 2rem;
+    font-size: clamp(2.2rem, 8vw, 3rem);
 }
 
 body.phone-layout .logo-icon {
@@ -502,7 +502,7 @@ body.phone-layout .logo-icon {
 }
 
 body.phone-layout .header {
-    margin-bottom: 16px;
+    margin-bottom: 14px;
 }
 
 body.phone-layout .card {

@@ -58,7 +58,7 @@ class RoomManager {
         });
     }
 
-    addPlayer(room, socketId, playerName, avatar = 'alibicim.png') {
+    addPlayer(room, socketId, playerName, avatar = 'p-amber') {
         const active = this.getActivePlayers(room);
         const positions = ['bottom', 'right', 'top', 'left'];
         const player = {
@@ -67,7 +67,7 @@ class RoomManager {
             position: positions[active.length],
             index: active.length,
             team: room.teamMode ? (active.length % 2 === 0 ? 1 : 2) : null,
-            avatar: avatar || 'alibicim.png',
+            avatar: avatar || 'p-amber',
             disconnected: false,
             disconnectTime: null
         };

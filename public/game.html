@@ -4,20 +4,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="theme-color" content="#0f172a">
+    <meta name="theme-color" content="#0a1628">
     <title>Berlin Okey</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/okey-table.css">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/atmosphere.css">
 </head>
 
-<body class="phone-layout">
+<body class="phone-layout game-page">
     <script>document.documentElement.classList.add('phone-layout');</script>
     <div class="background-animation"></div>
 
-    <!-- Floating Particles -->
-    <div class="particles">
+    <div class="particles" aria-hidden="true">
         <div class="particle"></div>
         <div class="particle"></div>
         <div class="particle"></div>
@@ -28,45 +30,46 @@
         <div class="particle"></div>
     </div>
 
-    <!-- 🏠 LOBİ BEKLEME EKRANI -->
     <div id="lobbyOverlay" class="lobby-overlay">
+        <div class="menu-atmosphere lobby-atmosphere" aria-hidden="true"></div>
         <div class="lobby-container">
             <div class="lobby-header">
-                <h1>🎴 Berlin Okey</h1>
-                <p>Oyuncular bekleniyor...</p>
+                <p class="brand-mark">Berlin Okey</p>
+                <h1>Oda bekleniyor</h1>
+                <p>Arkadaşların gelsin, masa açılsın</p>
             </div>
 
             <div class="lobby-room-code">
                 <div class="lobby-room-code-label">Oda Kodu</div>
                 <div id="lobbyRoomCode" class="lobby-room-code-value">------</div>
                 <div class="lobby-room-actions">
-                    <button id="lobbyCopyBtn" class="lobby-room-code-copy">📋 Kopyala</button>
-                    <button id="lobbyShareBtn" class="lobby-room-code-copy lobby-share-btn">📤 Davet Et</button>
+                    <button id="lobbyCopyBtn" class="lobby-room-code-copy">Kopyala</button>
+                    <button id="lobbyShareBtn" class="lobby-room-code-copy lobby-share-btn">Davet Et</button>
                 </div>
                 <p class="lobby-invite-hint">Arkadaşların bu 6 haneli kodu girerek katılır</p>
             </div>
 
             <div id="lobbyTeamBadge" class="lobby-team-badge hidden">
-                👥 Takım Modu Aktif
+                Takım Modu Aktif
             </div>
 
             <div class="lobby-players">
                 <h3>Oyuncular <span id="lobbyPlayerCount" class="lobby-players-count">(0/4)</span></h3>
                 <div id="lobbyPlayersGrid" class="lobby-players-grid">
                     <div class="lobby-player-slot empty" data-slot="0">
-                        <span class="position-icon">⬇️</span>
+                        <div class="lobby-profile-face" data-profile="p-amber">?</div>
                         <span class="player-name">Bekleniyor...</span>
                     </div>
                     <div class="lobby-player-slot empty" data-slot="1">
-                        <span class="position-icon">➡️</span>
+                        <div class="lobby-profile-face" data-profile="p-teal">?</div>
                         <span class="player-name">Bekleniyor...</span>
                     </div>
                     <div class="lobby-player-slot empty" data-slot="2">
-                        <span class="position-icon">⬆️</span>
+                        <div class="lobby-profile-face" data-profile="p-coral">?</div>
                         <span class="player-name">Bekleniyor...</span>
                     </div>
                     <div class="lobby-player-slot empty" data-slot="3">
-                        <span class="position-icon">⬅️</span>
+                        <div class="lobby-profile-face" data-profile="p-sky">?</div>
                         <span class="player-name">Bekleniyor...</span>
                     </div>
                 </div>
@@ -170,42 +173,54 @@
 
             <!-- Üst Rakip -->
             <div class="opponent-area top">
-                <div id="topPlayerInfo" class="player-info" data-position="top">
+                <div id="topPlayerInfo" class="player-info seat-profile" data-position="top">
                     <div class="avatar-wrapper">
-                        <img id="topPlayerAvatar" class="player-avatar" src="" alt="Avatar" style="display:none">
+                        <div id="topPlayerFace" class="profile-face" data-profile="p-amber">?</div>
+                        <img id="topPlayerAvatar" class="player-avatar hidden" src="" alt="">
                         <div class="turn-badge"></div>
                     </div>
                     <div class="player-details">
                         <span class="player-name" id="topPlayerName">-</span>
-                        <span class="tile-count-badge" id="topTileCount">0</span>
+                        <div class="player-meta">
+                            <span class="tile-count-badge" id="topTileCount">0</span>
+                            <span class="player-score" id="topPlayerScore">0</span>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <!-- Sol Rakip -->
             <div class="opponent-area left">
-                <div id="leftPlayerInfo" class="player-info" data-position="left">
+                <div id="leftPlayerInfo" class="player-info seat-profile" data-position="left">
                     <div class="avatar-wrapper">
-                        <img id="leftPlayerAvatar" class="player-avatar" src="" alt="Avatar" style="display:none">
+                        <div id="leftPlayerFace" class="profile-face" data-profile="p-teal">?</div>
+                        <img id="leftPlayerAvatar" class="player-avatar hidden" src="" alt="">
                         <div class="turn-badge"></div>
                     </div>
                     <div class="player-details">
                         <span class="player-name" id="leftPlayerName">-</span>
-                        <span class="tile-count-badge" id="leftTileCount">0</span>
+                        <div class="player-meta">
+                            <span class="tile-count-badge" id="leftTileCount">0</span>
+                            <span class="player-score" id="leftPlayerScore">0</span>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <!-- Sağ Rakip -->
             <div class="opponent-area right">
-                <div id="rightPlayerInfo" class="player-info" data-position="right">
+                <div id="rightPlayerInfo" class="player-info seat-profile" data-position="right">
                     <div class="avatar-wrapper">
-                        <img id="rightPlayerAvatar" class="player-avatar" src="" alt="Avatar" style="display:none">
+                        <div id="rightPlayerFace" class="profile-face" data-profile="p-coral">?</div>
+                        <img id="rightPlayerAvatar" class="player-avatar hidden" src="" alt="">
                         <div class="turn-badge"></div>
                     </div>
                     <div class="player-details">
                         <span class="player-name" id="rightPlayerName">-</span>
-                        <span class="tile-count-badge" id="rightTileCount">0</span>
+                        <div class="player-meta">
+                            <span class="tile-count-badge" id="rightTileCount">0</span>
+                            <span class="player-score" id="rightPlayerScore">0</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -240,14 +255,18 @@
                     <div class="discard-tiles" id="rightDiscardTiles"></div>
                 </div>
 
-                <div id="bottomPlayerInfo" class="player-info self" data-position="bottom">
+                <div id="bottomPlayerInfo" class="player-info self seat-profile" data-position="bottom">
                     <div class="avatar-wrapper">
-                        <img id="bottomPlayerAvatar" class="player-avatar" src="" alt="Avatar" style="display:none">
+                        <div id="bottomPlayerFace" class="profile-face" data-profile="p-amber">?</div>
+                        <img id="bottomPlayerAvatar" class="player-avatar hidden" src="" alt="">
                         <div class="turn-badge"></div>
                     </div>
                     <div class="player-details">
                         <span class="player-name" id="bottomPlayerName">Sen</span>
-                        <span class="tile-count-badge" id="bottomTileCount">0</span>
+                        <div class="player-meta">
+                            <span class="tile-count-badge" id="bottomTileCount">0</span>
+                            <span class="player-score" id="bottomPlayerScore">0</span>
+                        </div>
                     </div>
                 </div>
             </div>

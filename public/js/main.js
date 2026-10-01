@@ -12,6 +12,8 @@ socket.on('connect_error', (err) => {
     showError('Sunucuyla bağlantı kurulamadı! Lütfen sayfayı yenileyin.');
 });
 
+const PROFILE_KEYS = ['p-amber', 'p-teal', 'p-coral', 'p-sky', 'p-lime', 'p-rose'];
+
 const playerNameInput = document.getElementById('playerNameInput');
 const roomCodeInput = document.getElementById('roomCodeInput');
 const errorToast = document.getElementById('errorToast');
@@ -21,18 +23,40 @@ const teamModeToggle = document.getElementById('teamModeToggle');
 const stackingModeToggle = document.getElementById('stackingModeToggle');
 const penaltyModeToggle = document.getElementById('penaltyModeToggle');
 const tgUserBadge = document.getElementById('tgUserBadge');
+const profilePreviewAvatar = document.getElementById('profilePreviewAvatar');
+const profilePreviewName = document.getElementById('profilePreviewName');
 
 let playerName = '';
-let selectedAvatar = 'alibicim.png';
+let selectedAvatar = 'p-amber';
 let selectedIstaka = 'istaka.jpg';
 let telegramUserId = null;
+
+function normalizeProfile(avatar) {
+    if (PROFILE_KEYS.includes(avatar)) return avatar;
+    return 'p-amber';
+}
+
+function getInitial(name) {
+    const t = (name || 'O').trim();
+    return (t.charAt(0) || 'O').toUpperCase();
+}
+
+function refreshProfilePreview() {
+    const name = (playerNameInput && playerNameInput.value.trim()) || playerName || 'Oyuncu';
+    if (profilePreviewName) profilePreviewName.textContent = name;
+    if (profilePreviewAvatar) {
+        profilePreviewAvatar.textContent = getInitial(name);
+        profilePreviewAvatar.dataset.profile = selectedAvatar;
+    }
+}
 
 const avatarOptions = document.querySelectorAll('.avatar-option');
 avatarOptions.forEach(option => {
     option.addEventListener('click', () => {
         avatarOptions.forEach(o => o.classList.remove('selected'));
         option.classList.add('selected');
-        selectedAvatar = option.dataset.avatar;
+        selectedAvatar = normalizeProfile(option.dataset.avatar);
+        refreshProfilePreview();
         playSound('click');
         if (window.BerlinTelegram) BerlinTelegram.haptic('light');
     });
@@ -48,6 +72,10 @@ istakaOptions.forEach(option => {
         if (window.BerlinTelegram) BerlinTelegram.haptic('light');
     });
 });
+
+if (playerNameInput) {
+    playerNameInput.addEventListener('input', refreshProfilePreview);
+}
 
 if (roomCodeInput) {
     roomCodeInput.addEventListener('input', () => {
@@ -154,22 +182,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    if (savedAvatar) {
-        selectedAvatar = savedAvatar;
-        avatarOptions.forEach(o => {
-            o.classList.remove('selected');
-            if (o.dataset.avatar === savedAvatar) o.classList.add('selected');
-        });
-    }
+    selectedAvatar = normalizeProfile(savedAvatar || selectedAvatar);
+    avatarOptions.forEach(o => {
+        o.classList.toggle('selected', o.dataset.avatar === selectedAvatar);
+    });
 
     const savedIstaka = localStorage.getItem('okeyPlayerIstaka');
     if (savedIstaka) {
         selectedIstaka = savedIstaka;
         istakaOptions.forEach(o => {
-            o.classList.remove('selected');
-            if (o.dataset.istaka === savedIstaka) o.classList.add('selected');
+            o.classList.toggle('selected', o.dataset.istaka === savedIstaka);
         });
     }
+
+    refreshProfilePreview();
 
     // Deep link / Telegram start_param: ?room=123456
     const urlParams = new URLSearchParams(window.location.search);
@@ -185,22 +211,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-createRoomBtn.addEventListener('click', () => {
-    emitJoin({ createRoom: true });
-});
+if (createRoomBtn) {
+    createRoomBtn.addEventListener('click', () => emitJoin({ createRoom: true }));
+}
 
-joinRoomBtn.addEventListener('click', () => {
-    const code = (roomCodeInput.value || '').replace(/\D/g, '');
-    if (code.length !== 6) {
-        showError('Oda kodu 6 basamaklı olmalı!');
-        return;
-    }
-    emitJoin({ createRoom: false, roomCode: code });
-});
+if (joinRoomBtn) {
+    joinRoomBtn.addEventListener('click', () => {
+        const code = (roomCodeInput.value || '').replace(/\D/g, '');
+        if (code.length !== 6) {
+            showError('Oda kodu 6 basamaklı olmalı!');
+            return;
+        }
+        emitJoin({ createRoom: false, roomCode: code });
+    });
+}
 
-roomCodeInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') joinRoomBtn.click();
-});
+if (roomCodeInput) {
+    roomCodeInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && joinRoomBtn) joinRoomBtn.click();
+    });
+}
 
 socket.on('joinedGame', (data) => {
     playSound('success');
@@ -227,13 +257,14 @@ socket.on('gameStarted', (data) => {
 });
 
 socket.on('error', (data) => {
-    showError(data.message);
+    showError(data.message || 'Bir hata oluştu');
     if (window.BerlinTelegram) BerlinTelegram.haptic('error');
 });
 
 function showError(message) {
+    if (!errorToast) return;
     const toastMessage = errorToast.querySelector('.toast-message');
-    toastMessage.textContent = message;
+    if (toastMessage) toastMessage.textContent = message;
     errorToast.classList.remove('hidden');
     setTimeout(() => errorToast.classList.add('hidden'), 3000);
 }
