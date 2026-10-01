@@ -11,21 +11,33 @@
     function fitPhoneLayout() {
         const root = document.documentElement;
         const w = Math.min(window.innerWidth, screen.width || window.innerWidth);
-        const h = Math.min(window.innerHeight, window.visualViewport ? window.visualViewport.height : window.innerHeight);
-
-        // Istaka: 13 taş * 50px + yan butonlar (~100px) + çek/at (~100px)
-        const sideChrome = 188;
-        const usable = Math.max(200, w - sideChrome);
-        const scale = Math.min(0.72, Math.max(0.38, usable / (13 * 50)));
-
-        root.style.setProperty('--rack-scale', String(scale));
-        // İki sıra + padding
-        const cueH = Math.round(50 * scale * 2 + 28);
-        root.style.setProperty('--cue-height', cueH + 'px');
+        const h = Math.min(
+            window.innerHeight,
+            window.visualViewport ? window.visualViewport.height : window.innerHeight
+        );
+        const landscape = w > h && h < 560;
 
         document.body.classList.add('phone-layout');
-        document.body.classList.toggle('landscape-phone', w > h && h < 520);
-        document.body.classList.toggle('portrait-phone', h >= w);
+        document.body.classList.toggle('landscape-phone', landscape);
+        document.body.classList.toggle('portrait-phone', !landscape);
+
+        // Istaka: 13 taş * 50px + yan chrome
+        const sideChrome = landscape ? 156 : 188;
+        const usableW = Math.max(180, w - sideChrome);
+        let scale = Math.min(0.72, Math.max(0.34, usableW / (13 * 50)));
+
+        // Yatayda yüksekliğe göre daha da sıkıştır
+        if (landscape) {
+            const maxByHeight = Math.max(0.32, (h - 56) / 160);
+            scale = Math.min(scale, maxByHeight, 0.48);
+        }
+
+        root.style.setProperty('--rack-scale', String(Number(scale.toFixed(3))));
+        const cueH = landscape
+            ? Math.round(Math.min(h * 0.38, 50 * scale * 2 + 18))
+            : Math.round(50 * scale * 2 + 28);
+        root.style.setProperty('--cue-height', cueH + 'px');
+        root.style.setProperty('--vvh', h + 'px');
     }
 
     function init() {

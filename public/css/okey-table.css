@@ -593,37 +593,43 @@ body.phone-layout .btn-large {
 }
 
 /* Yatay telefon (landscape) — klasik okey masası */
-@media (orientation: landscape) and (max-height: 500px) {
+@media (orientation: landscape) and (max-height: 560px) {
     :root {
-        --rack-scale: 0.42;
-        --cue-height: 118px;
+        --rack-scale: 0.38;
+        --cue-height: 100px;
     }
 
     .table-center.okey-center {
-        top: calc(36px + var(--safe-top)) !important;
-        bottom: calc(var(--cue-height) + 48px + var(--safe-bottom)) !important;
+        top: calc(28px + var(--safe-top)) !important;
+        bottom: calc(var(--cue-height) + 36px + var(--safe-bottom)) !important;
         flex-direction: row !important;
-        width: calc(100% - 100px) !important;
+        width: calc(100% - 88px) !important;
         left: 50% !important;
+        gap: 6px !important;
     }
 
     .center-stack {
-        width: 70px !important;
+        width: 58px !important;
         flex-direction: column !important;
         justify-content: center !important;
-        gap: 4px !important;
+        gap: 2px !important;
     }
 
     .center-stack .tile-placeholder,
     .center-stack .sprite-tile-host,
     .center-stack .pile-stack {
-        width: 34px;
-        height: 48px;
+        width: 28px;
+        height: 40px;
     }
 
     .center-stack .tile-sprite,
     .center-stack .display-tile {
-        transform: scale(0.64);
+        transform: scale(0.52);
+    }
+
+    .center-stack .slot-label,
+    .center-stack .area-label {
+        font-size: 0.48rem;
     }
 
     .turn-banner {
@@ -631,23 +637,334 @@ body.phone-layout .btn-large {
     }
 
     .action-buttons {
-        bottom: calc(var(--cue-height) + 6px + var(--safe-bottom)) !important;
-        transform: translateX(-50%) scale(0.9) !important;
+        bottom: calc(var(--cue-height) + 4px + var(--safe-bottom)) !important;
+        transform: translateX(-50%) scale(0.78) !important;
+        gap: 4px !important;
     }
 
     .opponent-area.left {
-        top: 42% !important;
+        top: 40% !important;
+        left: 2px !important;
     }
 
     .opponent-area.right {
-        top: 42% !important;
+        top: 40% !important;
+        right: 2px !important;
+    }
+
+    .opponent-area.top {
+        top: calc(2px + var(--safe-top)) !important;
     }
 
     .meld-groups .opened-sprite,
     .meld-groups .display-tile {
-        transform: scale(0.40);
-        margin: -18px -14px;
+        transform: scale(0.34);
+        margin: -20px -16px;
     }
+
+    .meld-board {
+        padding: 4px 6px;
+    }
+
+    .meld-board-label {
+        display: none;
+    }
+
+    .game-status-panel {
+        padding: 3px 8px !important;
+        font-size: 0.65rem !important;
+        max-width: 70vw;
+    }
+
+    .rack-sort-btn {
+        width: 28px;
+        min-height: 44px;
+        padding: 2px 1px;
+    }
+
+    .rack-sort-btn .sort-icon {
+        font-size: 0.55rem;
+    }
+
+    .rack-sort-btn .sort-text {
+        font-size: 0.48rem;
+    }
+
+    .player-discard {
+        width: 32px !important;
+        height: 54px !important;
+    }
+
+    .player-area.bottom {
+        bottom: calc(2px + var(--safe-bottom)) !important;
+        gap: 2px !important;
+        padding: 0 2px !important;
+    }
+
+    .cue-wood {
+        padding: 3px 4px !important;
+        border-radius: 8px 8px 0 0 !important;
+    }
+
+    .tomato-btn {
+        transform: scale(0.75);
+        bottom: calc(var(--cue-height) + 40px + var(--safe-bottom)) !important;
+    }
+}
+
+/* body.landscape-phone — JS ile de tetiklenir (Telegram viewport) */
+body.landscape-phone .table-center.okey-center {
+    top: calc(26px + var(--safe-top)) !important;
+    bottom: calc(var(--cue-height) + 32px + var(--safe-bottom)) !important;
+    flex-direction: row !important;
+    width: calc(100% - 84px) !important;
+    gap: 4px !important;
+}
+
+body.landscape-phone .turn-banner {
+    display: none !important;
+}
+
+body.landscape-phone .action-buttons {
+    bottom: calc(var(--cue-height) + 2px + var(--safe-bottom)) !important;
+    transform: translateX(-50%) scale(0.75) !important;
+}
+
+body.landscape-phone .seat-profile,
+body.landscape-phone .player-info {
+    padding: 3px 6px 3px 3px !important;
+    gap: 4px !important;
+    max-width: min(28vw, 120px);
+    border-radius: 12px !important;
+}
+
+body.landscape-phone .seat-profile .avatar-wrapper,
+body.landscape-phone .player-info .avatar-wrapper {
+    width: 28px !important;
+    height: 28px !important;
+}
+
+body.landscape-phone .seat-profile .profile-face {
+    font-size: 0.75rem;
+}
+
+body.landscape-phone .seat-profile .player-name,
+body.landscape-phone .player-name {
+    font-size: 0.62rem !important;
+    max-width: 64px;
+}
+
+body.landscape-phone .seat-profile .tile-count-badge,
+body.landscape-phone .seat-profile .player-score {
+    font-size: 0.52rem !important;
+}
+
+body.landscape-phone .player-info.self {
+    top: -30px !important;
+    right: 2px !important;
+}
+
+body.landscape-phone .opponent-area.left {
+    top: 38% !important;
+    left: 2px !important;
+}
+
+body.landscape-phone .opponent-area.right {
+    top: 38% !important;
+    right: 2px !important;
+}
+
+body.landscape-phone .opponent-area.top {
+    top: calc(2px + var(--safe-top)) !important;
+}
+
+body.landscape-phone .center-stack {
+    width: 54px !important;
+    flex-direction: column !important;
+    gap: 2px !important;
+}
+
+body.landscape-phone .center-stack .tile-sprite,
+body.landscape-phone .center-stack .display-tile {
+    transform: scale(0.5);
+}
+
+body.landscape-phone .meld-groups .opened-sprite,
+body.landscape-phone .meld-groups .display-tile {
+    transform: scale(0.32);
+    margin: -22px -17px;
+}
+
+body.landscape-phone .meld-board-label {
+    display: none;
+}
+
+body.landscape-phone .game-status-panel {
+    padding: 2px 7px !important;
+    max-width: 68vw;
+}
+
+body.landscape-phone .rack-sort-btn {
+    width: 26px;
+    min-height: 40px;
+}
+
+body.landscape-phone .player-discard {
+    width: 30px !important;
+    height: 50px !important;
+}
+
+body.landscape-phone .player-area.bottom {
+    bottom: calc(1px + var(--safe-bottom)) !important;
+    gap: 2px !important;
+}
+
+/* Ana menü yatay — tek satırda sıkışık */
+body.landscape-phone.lobby-page,
+body.landscape-phone .phone-lobby {
+    overflow-y: auto;
+}
+
+body.landscape-phone.lobby-page .phone-lobby.container,
+body.landscape-phone .phone-lobby.container {
+    display: grid !important;
+    grid-template-columns: minmax(140px, 34%) 1fr;
+    grid-template-rows: auto;
+    align-items: center;
+    gap: 10px 16px;
+    min-height: 100dvh;
+    height: auto;
+    max-height: none;
+    padding: calc(6px + env(safe-area-inset-top, 0px)) 12px calc(8px + env(safe-area-inset-bottom, 0px)) !important;
+    overflow-y: auto;
+}
+
+body.landscape-phone .lobby-hero {
+    margin: 0 !important;
+    text-align: left;
+    align-self: center;
+}
+
+body.landscape-phone .lobby-hero .logo {
+    font-size: clamp(1.35rem, 4.5vw, 1.85rem) !important;
+}
+
+body.landscape-phone .lobby-hero .tagline {
+    font-size: 0.72rem;
+    margin-top: 4px;
+}
+
+body.landscape-phone .brand-mark {
+    font-size: 0.55rem;
+    margin-bottom: 4px;
+}
+
+body.landscape-phone .lobby-panel {
+    padding: 10px 12px !important;
+    margin: 0 !important;
+    max-height: calc(100dvh - 16px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+body.landscape-phone .profile-preview {
+    margin-bottom: 8px;
+    padding: 6px 10px;
+    gap: 10px;
+}
+
+body.landscape-phone .profile-preview-avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 0.95rem;
+}
+
+body.landscape-phone .profile-preview-name {
+    font-size: 0.9rem;
+}
+
+body.landscape-phone .name-input-container {
+    margin-bottom: 8px;
+}
+
+body.landscape-phone .name-input {
+    padding: 8px 12px;
+    font-size: 0.9rem;
+}
+
+body.landscape-phone .profile-swatches {
+    gap: 6px !important;
+    margin-bottom: 8px !important;
+}
+
+body.landscape-phone .istaka-selection {
+    margin-bottom: 6px;
+}
+
+body.landscape-phone .istaka-swatch {
+    min-height: 40px;
+}
+
+body.landscape-phone .rules-row {
+    margin: 6px 0 8px;
+    gap: 6px;
+}
+
+body.landscape-phone .rule-chip {
+    padding: 5px 8px;
+    font-size: 0.68rem;
+}
+
+body.landscape-phone .room-actions {
+    gap: 8px;
+    margin-top: 4px;
+}
+
+body.landscape-phone .btn-large {
+    min-height: 40px !important;
+    padding: 8px 12px !important;
+    font-size: 0.9rem !important;
+}
+
+body.landscape-phone .room-join-row {
+    gap: 6px;
+}
+
+/* Lobi overlay yatay */
+body.landscape-phone .lobby-overlay .lobby-container {
+    max-width: min(92vw, 640px);
+    padding: 14px 16px !important;
+    max-height: 94dvh;
+    overflow-y: auto;
+}
+
+body.landscape-phone .lobby-header h1 {
+    font-size: 1.25rem !important;
+}
+
+body.landscape-phone .lobby-room-code {
+    margin: 10px 0 !important;
+    padding: 10px !important;
+}
+
+body.landscape-phone .lobby-room-code-value {
+    font-size: 1.45rem !important;
+}
+
+body.landscape-phone .lobby-players-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 6px;
+}
+
+body.landscape-phone .lobby-player-slot {
+    min-height: 72px;
+    padding: 8px 4px !important;
+}
+
+body.landscape-phone .lobby-profile-face {
+    width: 34px;
+    height: 34px;
+    font-size: 0.9rem;
 }
 
 /* Çok kısa ekran */
