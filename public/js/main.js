@@ -30,6 +30,7 @@ let selectedAvatar = '';
 let selectedIstaka = 'istaka.jpg';
 let telegramUserId = null;
 let telegramPhotoUrl = null;
+let telegramLocked = false;
 
 function getInitial(name) {
     const t = (name || 'O').trim();
@@ -37,7 +38,9 @@ function getInitial(name) {
 }
 
 function refreshProfilePreview() {
-    const name = (playerNameInput && playerNameInput.value.trim()) || playerName || 'Oyuncu';
+    const name = playerName
+        || (playerNameInput && playerNameInput.value.trim())
+        || 'Oyuncu';
     if (profilePreviewName) profilePreviewName.textContent = name;
     if (profilePreviewInitial) profilePreviewInitial.textContent = getInitial(name);
 
@@ -60,6 +63,58 @@ function refreshProfilePreview() {
         profilePreviewImg.classList.add('hidden');
         if (profilePreviewInitial) profilePreviewInitial.classList.remove('hidden');
     }
+}
+
+function lockTelegramIdentity(tgUser) {
+    telegramLocked = true;
+    telegramUserId = tgUser.id;
+    telegramPhotoUrl = tgUser.photoUrl || null;
+    playerName = tgUser.name;
+    if (telegramPhotoUrl) selectedAvatar = telegramPhotoUrl;
+    else if (telegramUserId) selectedAvatar = `/api/avatar/${telegramUserId}`;
+
+    const nameBox = document.getElementById('nameInputContainer');
+    if (nameBox) nameBox.classList.add('hidden');
+    if (playerNameInput) {
+        playerNameInput.value = playerName;
+        playerNameInput.readOnly = true;
+        playerNameInput.disabled = true;
+    }
+
+    if (tgUserBadge) {
+        const handle = tgUser.username ? `@${tgUser.username}` : tgUser.firstName;
+        tgUserBadge.textContent = `${handle} · otomatik giriş`;
+        tgUserBadge.classList.remove('hidden');
+    }
+
+    sessionStorage.setItem('okeyPlayerId', playerName);
+    sessionStorage.setItem('playerName', playerName);
+    localStorage.setItem('okeyPlayerName', playerName);
+    sessionStorage.setItem('telegramUserId', String(tgUser.id));
+    if (telegramPhotoUrl) sessionStorage.setItem('telegramPhotoUrl', telegramPhotoUrl);
+}
+
+function resolvePlayerName() {
+    // Telegram varsa her zaman onun ismi
+    if (telegramLocked && playerName) {
+        sessionStorage.setItem('okeyPlayerId', playerName);
+        sessionStorage.setItem('playerName', playerName);
+        localStorage.setItem('okeyPlayerName', playerName);
+        return playerName;
+    }
+
+    const inputName = playerNameInput ? playerNameInput.value.trim() : '';
+    if (inputName) {
+        playerName = inputName;
+        localStorage.setItem('okeyPlayerName', playerName);
+    } else {
+        playerName = sessionStorage.getItem('okeyPlayerId')
+            || sessionStorage.getItem('playerName')
+            || generatePlayerId();
+    }
+    sessionStorage.setItem('playerName', playerName);
+    sessionStorage.setItem('okeyPlayerId', playerName);
+    return playerName;
 }
 
 const istakaOptions = document.querySelectorAll('.istaka-option');
@@ -152,36 +207,17 @@ document.addEventListener('DOMContentLoaded', () => {
         BerlinTelegram.init();
         const tgUser = BerlinTelegram.getUser();
         if (tgUser) {
-            telegramUserId = tgUser.id;
-            telegramPhotoUrl = tgUser.photoUrl || null;
-            playerName = tgUser.name;
-            if (telegramPhotoUrl) selectedAvatar = telegramPhotoUrl;
-            else if (telegramUserId) selectedAvatar = `/api/avatar/${telegramUserId}`;
-
-            if (playerNameInput) {
-                playerNameInput.value = playerName;
-                playerNameInput.placeholder = 'Telegram ismin';
-            }
-            if (tgUserBadge) {
-                tgUserBadge.textContent = tgUser.username
-                    ? `@${tgUser.username} olarak oynuyorsun`
-                    : `${tgUser.firstName} olarak oynuyorsun`;
-                tgUserBadge.classList.remove('hidden');
-            }
-            sessionStorage.setItem('okeyPlayerId', playerName);
-            sessionStorage.setItem('telegramUserId', String(tgUser.id));
-            if (telegramPhotoUrl) sessionStorage.setItem('telegramPhotoUrl', telegramPhotoUrl);
+            lockTelegramIdentity(tgUser);
         }
     }
 
-    const savedName = localStorage.getItem('okeyPlayerName');
-
-    if (!playerName) {
+    if (!telegramLocked) {
+        const savedName = localStorage.getItem('okeyPlayerName');
         if (savedName && savedName.trim()) {
             playerName = savedName;
             if (playerNameInput) playerNameInput.value = savedName;
         } else {
-            let savedId = sessionStorage.getItem('okeyPlayerId');
+            let savedId = sessionStorage.getItem('okeyPlayerId') || sessionStorage.getItem('playerName');
             if (!savedId) {
                 playerName = generatePlayerId();
                 sessionStorage.setItem('okeyPlayerId', playerName);
@@ -192,13 +228,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 playerNameInput.value = playerName;
             }
         }
-    }
 
-    if (!telegramUserId) {
         const savedTg = sessionStorage.getItem('telegramUserId');
         if (savedTg) telegramUserId = savedTg;
-    }
-    if (!telegramPhotoUrl) {
         telegramPhotoUrl = sessionStorage.getItem('telegramPhotoUrl') || null;
     }
 

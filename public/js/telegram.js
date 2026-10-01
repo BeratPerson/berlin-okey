@@ -95,15 +95,15 @@
         const user = tg.initDataUnsafe && tg.initDataUnsafe.user;
         if (!user) return null;
 
-        const name =
-            (user.username && String(user.username).slice(0, 15)) ||
-            [user.first_name, user.last_name].filter(Boolean).join(' ').slice(0, 15) ||
-            'Oyuncu';
+        const displayName = [user.first_name, user.last_name].filter(Boolean).join(' ').trim()
+            || (user.username && String(user.username))
+            || 'Oyuncu';
 
         return {
             id: user.id,
-            name,
+            name: String(displayName).slice(0, 15),
             firstName: user.first_name || '',
+            lastName: user.last_name || '',
             username: user.username || '',
             photoUrl: user.photo_url || null,
             languageCode: user.language_code || 'tr'
