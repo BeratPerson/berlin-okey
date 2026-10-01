@@ -733,12 +733,16 @@ function renderPlayerHand() {
     if (countBadge) countBadge.textContent = validTileCount;
 
     // Otomatik grup analizi ve puan gösterimi
-    // Analiz için tekrar dense array (boşluksuz) oluşturup ona bakmalıyız
-    // VEYA analiz fonksiyonunu slotları anlayacak şekilde güncellemeliyiz.
-    // Şimdilik dense array senkronizasyonu yapalım.
     syncTilesFromSlots();
     const analysis = analyzeHandGroups();
     updateAutoScoreDisplay(analysis);
+
+    const scoreBadge = document.getElementById('handScoreBadge');
+    if (scoreBadge) {
+        const need = gameState.minimumOpenScore || 101;
+        scoreBadge.textContent = `${analysis.totalScore}/${need}`;
+        scoreBadge.classList.toggle('ready', analysis.totalScore >= need);
+    }
 
     // El Aç butonunu güncelle (101+ puan varsa aktif)
     if (openHandBtn && !gameState.hasOpened) {
@@ -2114,27 +2118,13 @@ socket.on('handOpened', (data) => {
 
 // Açılmış taşlar panelini güncelle
 function updateOpenedTilesPanel(data) {
-    const panel = document.getElementById('openedTilesPanel');
-    const list = document.getElementById('openedTilesList');
-
     if (!data.openedGroups || data.openedGroups.length === 0) return;
 
-    panel.classList.remove('hidden');
-
-    // Yeni grupları ekle
-    data.openedGroups.forEach(group => {
-        const groupEl = document.createElement('div');
-        groupEl.className = 'opened-group';
-
-        group.forEach(tile => {
-            const miniTile = document.createElement('div');
-            miniTile.className = 'mini-tile';
-            miniTile.innerHTML = createMiniTileHTML(tile);
-            groupEl.appendChild(miniTile);
-        });
-
-        list.appendChild(groupEl);
-    });
+    if (!gameState.openedGroups) gameState.openedGroups = [[], [], [], []];
+    const idx = typeof data.playerIndex === 'number' ? data.playerIndex : gameState.playerIndex;
+    const existing = gameState.openedGroups[idx] || [];
+    gameState.openedGroups[idx] = existing.concat(data.openedGroups);
+    renderAllOpenedGroups();
 }
 
 // Yeni el butonu
@@ -2322,27 +2312,154 @@ socket.on('handOpened', (data) => {
     playSound('success');
 });
 
-// Tüm açık grupları render et
+// Tüm açık grupları render et — merkez meld tahtasına diz
 function renderAllOpenedGroups() {
+    const meldGroups = document.getElementById('meldGroups');
+    if (meldGroups) meldGroups.innerHTML = '';
+
     const positions = ['bottom', 'right', 'top', 'left'];
 
     for (let i = 0; i < 4; i++) {
-        // Bu oyuncunun ekrandaki pozisyonu
         const relativePos = (i - gameState.playerIndex + 4) % 4;
         const position = positions[relativePos];
-
         const areaEl = document.getElementById(`opened${position.charAt(0).toUpperCase() + position.slice(1)}`);
-        if (!areaEl) continue;
-
-        areaEl.innerHTML = '';
+        if (areaEl) areaEl.innerHTML = '';
 
         const groups = gameState.openedGroups[i] || [];
         groups.forEach((group, groupIndex) => {
             const groupEl = createOpenedGroupElement(group, i, groupIndex);
-            areaEl.appendChild(groupEl);
+            if (meldGroups) {
+                meldGroups.appendChild(groupEl);
+            } else if (areaEl) {
+                areaEl.appendChild(groupEl);
+            }
         });
     }
 }
+
+// ============================================
+// 🔀 OTOMATİK DİZME — ÇİFT / SERİ
+// ============================================
+
+function placeTilesOnSlots(orderedTiles) {
+    gameState.slots.fill(null);
+    let slot = 0;
+    orderedTiles.forEach((tile) => {
+        if (tile === null) {
+            // Grup arası boşluk
+            slot = Math.min(slot + 1, SLOT_COUNT - 1);
+            return;
+        }
+        if (slot >= SLOT_COUNT) return;
+        gameState.slots[slot] = tile;
+        slot++;
+    });
+    syncTilesFromSlots();
+    renderPlayerHand();
+    playSound('tile-drop');
+    if (window.BerlinTelegram) BerlinTelegram.haptic('light');
+}
+
+/** Seri: renklere göre ayır, sayı sırasına diz, gruplar arasında boşluk bırak */
+function autoSortBySeries() {
+    syncTilesFromSlots();
+    const tiles = gameState.slots.filter(Boolean);
+    if (!tiles.length) return;
+
+    const okeys = [];
+    const fakes = [];
+    const byColor = { Kirmizi: [], Yesil: [], Mavi: [], Siyah: [] };
+
+    tiles.forEach((t) => {
+        if (t.isFakeJoker) fakes.push(t);
+        else if (isOkey(t)) okeys.push(t);
+        else if (byColor[t.color]) byColor[t.color].push(t);
+        else fakes.push(t);
+    });
+
+    Object.keys(byColor).forEach((c) => {
+        byColor[c].sort((a, b) => a.number - b.number);
+    });
+
+    const ordered = [];
+    ['Kirmizi', 'Yesil', 'Mavi', 'Siyah'].forEach((color) => {
+        const list = byColor[color];
+        if (!list.length) return;
+        if (ordered.length) ordered.push(null);
+        // Serileri ayır: ardışık değilse boşluk
+        let prev = null;
+        list.forEach((tile) => {
+            if (prev && tile.number !== prev.number + 1 && !(prev.number === 13 && tile.number === 1)) {
+                ordered.push(null);
+            }
+            ordered.push(tile);
+            prev = tile;
+        });
+    });
+
+    if (okeys.length || fakes.length) {
+        if (ordered.length) ordered.push(null);
+        ordered.push(...okeys, ...fakes);
+    }
+
+    placeTilesOnSlots(ordered);
+    showToast('Serilere göre dizildi', 'info');
+}
+
+/** Çift: aynı sayılı taşları yan yana topla */
+function autoSortByPairs() {
+    syncTilesFromSlots();
+    const tiles = gameState.slots.filter(Boolean);
+    if (!tiles.length) return;
+
+    const okeys = [];
+    const fakes = [];
+    const byNumber = {};
+
+    tiles.forEach((t) => {
+        if (t.isFakeJoker) fakes.push(t);
+        else if (isOkey(t)) okeys.push(t);
+        else {
+            const n = t.number;
+            if (!byNumber[n]) byNumber[n] = [];
+            byNumber[n].push(t);
+        }
+    });
+
+    Object.keys(byNumber).forEach((n) => {
+        byNumber[n].sort((a, b) => String(a.color).localeCompare(String(b.color)));
+    });
+
+    const ordered = [];
+    // Önce 2+ olan sayılar (çift/per adayları), sonra tekler
+    const nums = Object.keys(byNumber).map(Number).sort((a, b) => a - b);
+    const multi = nums.filter((n) => byNumber[n].length >= 2);
+    const singles = nums.filter((n) => byNumber[n].length === 1);
+
+    multi.forEach((n) => {
+        if (ordered.length) ordered.push(null);
+        ordered.push(...byNumber[n]);
+    });
+    singles.forEach((n) => {
+        if (ordered.length) ordered.push(null);
+        ordered.push(...byNumber[n]);
+    });
+
+    if (okeys.length || fakes.length) {
+        if (ordered.length) ordered.push(null);
+        ordered.push(...okeys, ...fakes);
+    }
+
+    placeTilesOnSlots(ordered);
+    showToast('Çiftlere göre dizildi', 'info');
+}
+
+document.getElementById('sortSeriesBtn')?.addEventListener('click', () => {
+    autoSortBySeries();
+});
+document.getElementById('sortPairsBtn')?.addEventListener('click', () => {
+    autoSortByPairs();
+});
 
 // Açık grup elementi oluştur
 function createOpenedGroupElement(tiles, playerIndex, groupIndex) {
