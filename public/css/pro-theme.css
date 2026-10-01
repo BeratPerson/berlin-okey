@@ -1,0 +1,379 @@
+/* ============================================
+   Berlin Okey — Profesyonel / sade tema
+   Ana menü + masa (son yüklenen katman)
+   ============================================ */
+
+:root {
+    --ink: #0e1116;
+    --deep: #12151a;
+    --surface: #1c2129;
+    --surface-2: #252b35;
+    --line: rgba(255, 255, 255, 0.08);
+    --line-strong: rgba(255, 255, 255, 0.14);
+    --text-primary: #eef0f3;
+    --text-secondary: #9aa3ad;
+    --accent: #6d9b8c;
+    --accent-strong: #5a8577;
+    --accent-soft: rgba(109, 155, 140, 0.16);
+    --danger: #c45c5c;
+    --warn: #c4a35a;
+    --felt: #1a4a3a;
+    --felt-mid: #215544;
+    --felt-edge: #102820;
+    --wood: #4a3728;
+    --wood-mid: #5c4634;
+    --cream: var(--text-primary);
+    --amber: var(--accent);
+    --glass: rgba(28, 33, 41, 0.92);
+    --glass-border: var(--line);
+    --font-display: 'Sora', system-ui, sans-serif;
+    --font-ui: 'Sora', system-ui, sans-serif;
+}
+
+body {
+    font-family: var(--font-ui);
+    background: var(--deep);
+    color: var(--text-primary);
+}
+
+/* ---- Ana menü: düz, sakin ---- */
+.menu-atmosphere {
+    background: linear-gradient(180deg, #161a21 0%, #12151a 55%, #0e1116 100%) !important;
+    animation: none !important;
+}
+
+.menu-atmosphere::after {
+    opacity: 0.25 !important;
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px) !important;
+}
+
+.lobby-hero {
+    animation: none !important;
+    margin-bottom: 18px !important;
+}
+
+.brand-mark {
+    color: var(--text-secondary) !important;
+    letter-spacing: 0.2em !important;
+    font-weight: 500 !important;
+}
+
+.lobby-hero .logo {
+    font-family: var(--font-display) !important;
+    font-size: clamp(1.85rem, 7vw, 2.4rem) !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.03em !important;
+}
+
+.lobby-hero .logo-text {
+    background: none !important;
+    -webkit-text-fill-color: var(--text-primary) !important;
+    color: var(--text-primary) !important;
+    animation: none !important;
+}
+
+.lobby-hero .tagline {
+    color: var(--text-secondary) !important;
+    font-size: 0.88rem !important;
+    font-weight: 400 !important;
+    letter-spacing: 0 !important;
+}
+
+.lobby-panel {
+    background: var(--surface) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 16px !important;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    animation: none !important;
+    padding: 18px 16px !important;
+}
+
+.profile-preview {
+    background: var(--surface-2) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 12px !important;
+    margin-bottom: 14px !important;
+}
+
+.profile-preview-avatar {
+    background: var(--accent-strong) !important;
+    border: 1px solid var(--line-strong) !important;
+    box-shadow: none !important;
+    color: #fff !important;
+}
+
+.profile-preview-label,
+.lobby-panel .section-label {
+    color: var(--text-secondary) !important;
+    letter-spacing: 0.1em !important;
+    font-weight: 500 !important;
+}
+
+.profile-preview-name {
+    color: var(--text-primary) !important;
+    font-weight: 600 !important;
+}
+
+.lobby-panel .name-input {
+    background: var(--surface-2) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 10px !important;
+    color: var(--text-primary) !important;
+}
+
+.lobby-panel .name-input:focus {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 2px var(--accent-soft) !important;
+}
+
+.istaka-swatch {
+    background: var(--surface-2) !important;
+    border-radius: 10px !important;
+}
+
+.istaka-swatch.selected {
+    border-color: var(--accent) !important;
+    box-shadow: none !important;
+}
+
+.istaka-swatch .istaka-label {
+    color: var(--text-secondary) !important;
+}
+
+.rule-chip {
+    background: var(--surface-2) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 8px !important;
+    color: var(--text-secondary) !important;
+    font-weight: 500 !important;
+}
+
+.rule-chip input {
+    accent-color: var(--accent);
+}
+
+.lobby-panel .btn-primary {
+    background: var(--accent-strong) !important;
+    color: #fff !important;
+    border-radius: 10px !important;
+    box-shadow: none !important;
+    font-weight: 600 !important;
+    letter-spacing: 0 !important;
+}
+
+.lobby-panel .btn-primary:hover {
+    background: var(--accent) !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+.lobby-panel .btn-secondary {
+    background: transparent !important;
+    border: 1px solid var(--line-strong) !important;
+    color: var(--text-primary) !important;
+    border-radius: 10px !important;
+}
+
+.lobby-panel .btn-secondary:hover {
+    background: var(--surface-2) !important;
+    transform: none !important;
+}
+
+.capacity-line {
+    color: var(--text-secondary) !important;
+    font-weight: 500 !important;
+}
+
+.capacity-line.capacity-full {
+    color: var(--danger) !important;
+}
+
+/* Lobi overlay */
+.lobby-overlay .lobby-container {
+    background: var(--surface) !important;
+    border: 1px solid var(--line) !important;
+    backdrop-filter: none !important;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35) !important;
+    animation: none !important;
+}
+
+.lobby-header h1 {
+    font-family: var(--font-ui) !important;
+    color: var(--text-primary) !important;
+    -webkit-text-fill-color: var(--text-primary) !important;
+    font-weight: 600 !important;
+}
+
+.lobby-header p,
+.lobby-invite-hint {
+    color: var(--text-secondary) !important;
+}
+
+.lobby-room-code {
+    background: var(--surface-2) !important;
+    border: 1px solid var(--line) !important;
+}
+
+.lobby-room-code-value {
+    color: var(--text-primary) !important;
+    text-shadow: none !important;
+    font-weight: 600 !important;
+}
+
+.lobby-share-btn {
+    background: var(--accent-soft) !important;
+    border-color: var(--accent) !important;
+    color: var(--accent) !important;
+}
+
+.lobby-team-badge {
+    background: var(--surface-2) !important;
+    border: 1px solid var(--line) !important;
+}
+
+.lobby-player-slot {
+    background: var(--surface-2) !important;
+    border: 1px solid var(--line) !important;
+}
+
+.lobby-player-slot.filled {
+    border-color: var(--line-strong) !important;
+    box-shadow: none !important;
+}
+
+.lobby-profile-face {
+    background: var(--accent-strong) !important;
+    box-shadow: none !important;
+    border-color: var(--line-strong) !important;
+    color: #fff !important;
+}
+
+/* ---- Masa: sade keçe ---- */
+.felt-oval {
+    background: #3d2e22 !important;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4) !important;
+}
+
+.felt-oval-inner {
+    background: radial-gradient(ellipse at 50% 40%, #2a6350 0%, var(--felt) 50%, var(--felt-edge) 100%) !important;
+}
+
+.game-board {
+    background: radial-gradient(ellipse at center, #1a2220 0%, #12151a 60%, #0e1116 100%) !important;
+}
+
+.center-island,
+.meld-board,
+.game-status-panel {
+    background: rgba(18, 22, 28, 0.82) !important;
+    border: 1px solid var(--line) !important;
+    box-shadow: none !important;
+}
+
+.meld-board-label,
+.center-stack .slot-label,
+.center-stack .area-label,
+.game-status-panel .label {
+    color: var(--text-secondary) !important;
+}
+
+.pile-count-badge {
+    background: var(--accent-strong) !important;
+    color: #fff !important;
+    box-shadow: none !important;
+}
+
+#okeyTile .tile-sprite,
+#okeyTile .display-tile {
+    box-shadow: 0 0 0 2px var(--accent) !important;
+}
+
+.seat-profile,
+.player-info {
+    background: rgba(18, 22, 28, 0.9) !important;
+    border: 1px solid var(--line) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+}
+
+.seat-profile.current-turn,
+.player-info.current-turn {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 1px var(--accent-soft) !important;
+    transform: none !important;
+}
+
+.seat-profile.current-turn .turn-ring,
+.player-info.current-turn .turn-ring {
+    border-color: var(--accent) !important;
+    box-shadow: none !important;
+    animation: none !important;
+    opacity: 1;
+}
+
+.seat-profile .player-score,
+.seat-profile .tile-count-badge {
+    color: var(--text-secondary) !important;
+    background: var(--surface-2) !important;
+}
+
+.cue-wood {
+    border-color: #2a2118 !important;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.35) !important;
+}
+
+.rack-sort-btn {
+    background: var(--surface) !important;
+    border: 1px solid var(--line-strong) !important;
+    color: var(--text-secondary) !important;
+    box-shadow: none !important;
+}
+
+.player-discard.left-discard .discard-tiles {
+    border-color: rgba(109, 155, 140, 0.35) !important;
+    background: rgba(18, 28, 26, 0.7) !important;
+}
+
+.player-discard.right-discard .discard-tiles {
+    border-color: rgba(196, 92, 92, 0.35) !important;
+    background: rgba(28, 18, 18, 0.7) !important;
+}
+
+.turn-banner {
+    background: rgba(18, 22, 28, 0.94) !important;
+    border: 1px solid var(--line-strong) !important;
+    color: var(--text-primary) !important;
+    box-shadow: none !important;
+}
+
+.action-btn.open-hand {
+    background: var(--accent-strong) !important;
+    color: #fff !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.action-btn.finish {
+    background: var(--surface-2) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--line-strong) !important;
+    box-shadow: none !important;
+}
+
+.hand-score-badge {
+    background: var(--surface) !important;
+    border: 1px solid var(--line) !important;
+    color: var(--text-secondary) !important;
+}
+
+.turn-timer-value.timer-warn {
+    color: var(--warn) !important;
+}
+
+.turn-timer-value.timer-danger {
+    color: var(--danger) !important;
+    animation: none !important;
+}
