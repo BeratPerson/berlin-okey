@@ -558,3 +558,214 @@ body {
         animation: none !important;
     }
 }
+
+/* ============================================
+   Ana menü YATAY — JS sınıfına bağımlı değil
+   (Telegram screen.width bug'ından bağımsız)
+   ============================================ */
+@media (orientation: landscape) and (max-height: 520px) {
+    html.lobby-page,
+    html:has(body.lobby-page),
+    body.lobby-page {
+        overflow: auto !important;
+        height: auto !important;
+        min-height: 100% !important;
+        min-height: 100dvh !important;
+    }
+
+    body.lobby-page {
+        overflow-x: hidden !important;
+    }
+
+    body.lobby-page .container.phone-lobby,
+    body.lobby-page .phone-lobby.container,
+    .lobby-page .container.phone-lobby {
+        display: grid !important;
+        grid-template-columns: 28% minmax(0, 1fr) !important;
+        grid-template-rows: minmax(0, 1fr) !important;
+        align-items: stretch !important;
+        justify-content: stretch !important;
+        gap: 8px 12px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 100dvh !important;
+        min-height: 100dvh !important;
+        max-height: 100dvh !important;
+        margin: 0 !important;
+        padding: 6px 10px !important;
+        padding-left: max(10px, env(safe-area-inset-left)) !important;
+        padding-right: max(10px, env(safe-area-inset-right)) !important;
+        padding-top: max(6px, env(safe-area-inset-top)) !important;
+        padding-bottom: max(6px, env(safe-area-inset-bottom)) !important;
+        overflow: hidden !important;
+        box-sizing: border-box !important;
+    }
+
+    body.lobby-page .lobby-hero,
+    .lobby-page .lobby-hero {
+        margin: 0 !important;
+        padding: 4px 2px !important;
+        text-align: left !important;
+        align-self: center !important;
+        animation: none !important;
+    }
+
+    body.lobby-page .lobby-hero .logo,
+    .lobby-page .lobby-hero .logo {
+        font-size: clamp(1.1rem, 3.8vh, 1.55rem) !important;
+        line-height: 1.1 !important;
+    }
+
+    body.lobby-page .brand-mark {
+        font-size: 0.5rem !important;
+        letter-spacing: 0.18em !important;
+        margin-bottom: 2px !important;
+    }
+
+    body.lobby-page .lobby-hero .tagline,
+    body.lobby-page .tg-user-badge {
+        display: none !important;
+    }
+
+    body.lobby-page .lobby-panel,
+    .lobby-page .lobby-panel {
+        margin: 0 !important;
+        padding: 8px 10px !important;
+        border-radius: 12px !important;
+        max-height: 100% !important;
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch;
+        animation: none !important;
+        align-self: stretch !important;
+    }
+
+    body.lobby-page .profile-preview {
+        margin-bottom: 6px !important;
+        padding: 4px 8px !important;
+        gap: 8px !important;
+        border-radius: 10px !important;
+    }
+
+    body.lobby-page .profile-preview-avatar {
+        width: 30px !important;
+        height: 30px !important;
+        font-size: 0.85rem !important;
+    }
+
+    body.lobby-page .profile-preview-label {
+        font-size: 0.55rem !important;
+    }
+
+    body.lobby-page .profile-preview-name {
+        font-size: 0.82rem !important;
+    }
+
+    body.lobby-page .name-input-container {
+        margin-bottom: 6px !important;
+    }
+
+    body.lobby-page .name-input {
+        padding: 6px 10px !important;
+        font-size: 0.82rem !important;
+        border-radius: 10px !important;
+    }
+
+    body.lobby-page .section-label {
+        font-size: 0.58rem !important;
+        margin-bottom: 4px !important;
+    }
+
+    body.lobby-page .avatar-selection {
+        margin-bottom: 4px !important;
+    }
+
+    body.lobby-page .profile-swatches {
+        gap: 5px !important;
+        margin-bottom: 6px !important;
+    }
+
+    body.lobby-page .profile-swatch {
+        min-height: 0 !important;
+    }
+
+    /* Istaka + kurallar yatayda gizle — yer kazan */
+    body.lobby-page .istaka-selection,
+    body.lobby-page .rules-row {
+        display: none !important;
+    }
+
+    body.lobby-page .room-actions {
+        gap: 6px !important;
+        margin-top: 4px !important;
+    }
+
+    body.lobby-page .btn-large {
+        min-height: 34px !important;
+        padding: 6px 10px !important;
+        font-size: 0.82rem !important;
+        border-radius: 10px !important;
+    }
+
+    body.lobby-page .room-join-row {
+        gap: 6px !important;
+    }
+
+    body.lobby-page .room-join-row .btn {
+        min-width: 72px !important;
+    }
+}
+
+/* Daha da kısa yatay (küçük telefon) */
+@media (orientation: landscape) and (max-height: 380px) {
+    body.lobby-page .container.phone-lobby {
+        grid-template-columns: 22% minmax(0, 1fr) !important;
+        gap: 6px 8px !important;
+        padding: 4px 8px !important;
+    }
+
+    body.lobby-page .lobby-hero .logo {
+        font-size: 1rem !important;
+    }
+
+    body.lobby-page .brand-mark {
+        display: none !important;
+    }
+
+    body.lobby-page .profile-preview {
+        display: none !important;
+    }
+
+    body.lobby-page .avatar-selection {
+        display: none !important;
+    }
+
+    body.lobby-page .lobby-panel {
+        padding: 6px 8px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+    }
+}
+
+/* html.landscape-phone yedek (JS / erken script) */
+html.landscape-phone body.lobby-page .container.phone-lobby,
+body.landscape-phone.lobby-page .container.phone-lobby {
+    display: grid !important;
+    grid-template-columns: 28% minmax(0, 1fr) !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important;
+    padding: 6px 10px !important;
+}
+
+html.landscape-phone body.lobby-page .istaka-selection,
+html.landscape-phone body.lobby-page .rules-row,
+body.landscape-phone.lobby-page .istaka-selection,
+body.landscape-phone.lobby-page .rules-row,
+html.landscape-phone body.lobby-page .tagline,
+body.landscape-phone.lobby-page .tagline {
+    display: none !important;
+}

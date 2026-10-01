@@ -10,34 +10,34 @@
 
     function fitPhoneLayout() {
         const root = document.documentElement;
-        const w = Math.min(window.innerWidth, screen.width || window.innerWidth);
-        const h = Math.min(
-            window.innerHeight,
-            window.visualViewport ? window.visualViewport.height : window.innerHeight
-        );
-        const landscape = w > h && h < 560;
+        // Telegram / iOS: screen.width çoğu zaman dikey kısa kenar kalır — viewport kullan
+        const vv = window.visualViewport;
+        const w = Math.round(vv ? vv.width : window.innerWidth);
+        const h = Math.round(vv ? vv.height : window.innerHeight);
+        const landscape = w > h;
 
         document.body.classList.add('phone-layout');
         document.body.classList.toggle('landscape-phone', landscape);
         document.body.classList.toggle('portrait-phone', !landscape);
+        root.classList.toggle('landscape-phone', landscape);
+        root.classList.toggle('portrait-phone', !landscape);
 
-        // Istaka: 13 taş * 50px + yan chrome
         const sideChrome = landscape ? 156 : 188;
         const usableW = Math.max(180, w - sideChrome);
         let scale = Math.min(0.72, Math.max(0.34, usableW / (13 * 50)));
 
-        // Yatayda yüksekliğe göre daha da sıkıştır
         if (landscape) {
-            const maxByHeight = Math.max(0.32, (h - 56) / 160);
-            scale = Math.min(scale, maxByHeight, 0.48);
+            const maxByHeight = Math.max(0.32, (h - 48) / 150);
+            scale = Math.min(scale, maxByHeight, 0.46);
         }
 
         root.style.setProperty('--rack-scale', String(Number(scale.toFixed(3))));
         const cueH = landscape
-            ? Math.round(Math.min(h * 0.38, 50 * scale * 2 + 18))
+            ? Math.round(Math.min(h * 0.36, 50 * scale * 2 + 14))
             : Math.round(50 * scale * 2 + 28);
         root.style.setProperty('--cue-height', cueH + 'px');
         root.style.setProperty('--vvh', h + 'px');
+        root.style.setProperty('--vvw', w + 'px');
     }
 
     function init() {
@@ -50,6 +50,7 @@
 
         if (!tg) {
             document.body.classList.add('phone-layout');
+            fitPhoneLayout();
             return null;
         }
 

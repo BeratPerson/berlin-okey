@@ -16,7 +16,18 @@
 </head>
 
 <body class="phone-layout lobby-page">
-    <script>document.documentElement.classList.add('phone-layout');</script>
+    <script>
+        document.documentElement.classList.add('phone-layout');
+        (function () {
+            var w = window.innerWidth, h = window.innerHeight;
+            if (w > h) {
+                document.documentElement.classList.add('landscape-phone');
+                document.addEventListener('DOMContentLoaded', function () {
+                    document.body.classList.add('landscape-phone', 'phone-layout');
+                });
+            }
+        })();
+    </script>
 
     <div class="menu-atmosphere" aria-hidden="true"></div>
 
