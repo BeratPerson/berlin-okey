@@ -93,6 +93,25 @@ const pileCountCenter = document.getElementById('pileCountCenter');
 const pileCount = document.getElementById('pileCount');
 const turnIndicator = document.getElementById('turnIndicator');
 const currentPlayerName = document.getElementById('currentPlayerName');
+const turnTimerValue = document.getElementById('turnTimerValue');
+const turnActionHint = document.getElementById('turnActionHint');
+const turnActionText = document.getElementById('turnActionText');
+const turnBanner = document.getElementById('turnBanner');
+const turnBannerText = document.getElementById('turnBannerText');
+const cueWood = document.getElementById('cueWood') || document.querySelector('.cue-wood');
+
+// Online 101 Okey: 30 sn (Okey 101 Plus / Yudum aralığı)
+const TURN_SECONDS_DEFAULT = 30;
+const TURN_WARN_SECONDS = 15;
+const TURN_DANGER_SECONDS = 8;
+
+let turnTimerState = {
+    endsAt: null,
+    intervalId: null,
+    turnSeconds: TURN_SECONDS_DEFAULT,
+    warnSeconds: TURN_WARN_SECONDS,
+    dangerSeconds: TURN_DANGER_SECONDS
+};
 const finishBtn = document.getElementById('finishBtn');
 const gameEndModal = document.getElementById('gameEndModal');
 const gameToast = document.getElementById('gameToast');
@@ -374,22 +393,25 @@ function initializeGame(data) {
     gameState.scores = data.scores;
     gameState.hasDrawn = gameState.playerIndex === gameState.currentPlayer;
 
+    // İlk oyuncu 22 taşla başlar → çekmiş sayılır
+    if (gameState.playerIndex === gameState.currentPlayer) {
+        gameState.hasDrawn = true;
+    } else {
+        gameState.hasDrawn = false;
+    }
+
     // UI güncelle
     updateIndicatorDisplay();
     updatePlayersDisplay();
     updateScoreboard();
     renderPlayerHand();
     updateTurnIndicator();
+    startClientTurnTimer(data);
 
     // Kalan taş sayısını güncelle
     if (data.pileCount !== undefined) {
         pileCountCenter.textContent = data.pileCount;
         pileCount.textContent = data.pileCount;
-    }
-
-    // İlk oyuncu zaten taş çekmiş sayılıyor (22 taş aldı)
-    if (gameState.playerIndex === gameState.currentPlayer) {
-        gameState.hasDrawn = true;
     }
 
     // Slotları initialize et (sıralı diz) - Sadece BOŞSA!
@@ -1424,10 +1446,9 @@ function updateTurnIndicator() {
     const isMyTurn = gameState.currentPlayer === gameState.playerIndex;
     const currentPlayer = gameState.players[gameState.currentPlayer];
 
-    currentPlayerName.textContent = isMyTurn ? 'Senin Sıran!' : currentPlayer?.name || '-';
+    currentPlayerName.textContent = isMyTurn ? 'Senin Sıran!' : (currentPlayer?.name || '-');
     turnIndicator.classList.toggle('my-turn', isMyTurn);
 
-    // Tüm oyuncu info'larını güncelle
     document.querySelectorAll('.player-info').forEach(el => {
         el.classList.remove('current-turn');
     });
@@ -1446,10 +1467,126 @@ function updateTurnIndicator() {
         currentPlayerInfo.classList.add('current-turn');
     }
 
+    updateTurnActionUI(isMyTurn);
+
     if (isMyTurn) {
         playSound('turn');
     }
 }
+
+function updateTurnActionUI(isMyTurn) {
+    const needDraw = isMyTurn && !gameState.hasDrawn;
+    const needDiscard = isMyTurn && gameState.hasDrawn;
+
+    if (drawPile) {
+        drawPile.classList.toggle('need-draw-pulse', needDraw);
+    }
+    if (discardPile) {
+        discardPile.classList.toggle('need-draw-pulse', needDraw);
+    }
+    const leftDiscardEl = document.getElementById('myLeftDiscard');
+    if (leftDiscardEl) {
+        leftDiscardEl.classList.toggle('need-draw-pulse', needDraw);
+    }
+
+    if (turnActionHint && turnActionText) {
+        const divider = document.querySelector('.turn-action-divider');
+        if (isMyTurn) {
+            turnActionHint.classList.remove('hidden');
+            if (divider) divider.classList.remove('hidden');
+            turnActionText.textContent = needDraw ? 'Taş çek!' : 'Taş at!';
+            turnActionHint.classList.toggle('hint-draw', needDraw);
+            turnActionHint.classList.toggle('hint-discard', needDiscard);
+        } else {
+            turnActionHint.classList.add('hidden');
+            if (divider) divider.classList.add('hidden');
+        }
+    }
+
+    if (turnBanner && turnBannerText) {
+        if (isMyTurn) {
+            turnBanner.classList.remove('hidden');
+            turnBanner.classList.toggle('draw-phase', needDraw);
+            turnBanner.classList.toggle('discard-phase', needDiscard);
+            turnBannerText.textContent = needDraw
+                ? 'Senin sıran — yığından veya soldan taş çek!'
+                : 'Taş çektin — ıstakadan bir taş at!';
+        } else {
+            turnBanner.classList.add('hidden');
+        }
+    }
+}
+
+function stopClientTurnTimer() {
+    if (turnTimerState.intervalId) {
+        clearInterval(turnTimerState.intervalId);
+        turnTimerState.intervalId = null;
+    }
+}
+
+function startClientTurnTimer(payload = {}) {
+    if (payload.turnSeconds) turnTimerState.turnSeconds = payload.turnSeconds;
+    if (payload.warnSeconds) turnTimerState.warnSeconds = payload.warnSeconds;
+    if (payload.dangerSeconds) turnTimerState.dangerSeconds = payload.dangerSeconds;
+
+    if (payload.turnEndsAt) {
+        turnTimerState.endsAt = payload.turnEndsAt;
+    } else if (payload.turnSeconds) {
+        turnTimerState.endsAt = Date.now() + payload.turnSeconds * 1000;
+    }
+
+    stopClientTurnTimer();
+    tickTurnTimer();
+    turnTimerState.intervalId = setInterval(tickTurnTimer, 200);
+}
+
+function tickTurnTimer() {
+    if (!turnTimerState.endsAt) return;
+
+    const remainingMs = Math.max(0, turnTimerState.endsAt - Date.now());
+    const remainingSec = Math.ceil(remainingMs / 1000);
+    const isMyTurn = gameState.currentPlayer === gameState.playerIndex;
+
+    if (turnTimerValue) {
+        turnTimerValue.textContent = String(remainingSec);
+        turnTimerValue.classList.toggle('timer-warn', remainingSec <= turnTimerState.warnSeconds && remainingSec > turnTimerState.dangerSeconds);
+        turnTimerValue.classList.toggle('timer-danger', remainingSec <= turnTimerState.dangerSeconds);
+    }
+
+    if (cueWood) {
+        cueWood.classList.remove('timer-warn', 'timer-danger', 'timer-active');
+        if (isMyTurn) {
+            cueWood.classList.add('timer-active');
+            if (remainingSec <= turnTimerState.dangerSeconds) {
+                cueWood.classList.add('timer-danger');
+            } else if (remainingSec <= turnTimerState.warnSeconds) {
+                cueWood.classList.add('timer-warn');
+            }
+        }
+    }
+
+    updateTurnActionUI(isMyTurn);
+}
+
+socket.on('turnTimer', (data) => {
+    if (typeof data.hasDrawn === 'boolean' && data.currentPlayer === gameState.playerIndex) {
+        gameState.hasDrawn = data.hasDrawn;
+    }
+    if (typeof data.currentPlayer === 'number') {
+        gameState.currentPlayer = data.currentPlayer;
+    }
+    updateTurnIndicator();
+    startClientTurnTimer(data);
+});
+
+socket.on('turnTimeout', (data) => {
+    const name = data.playerName || 'Oyuncu';
+    if (data.playerIndex === gameState.playerIndex) {
+        showToast('Süre doldu — hamle otomatik yapıldı', 'error');
+    } else {
+        showToast(`${name} süresi doldu`, 'info');
+    }
+});
 
 // Yığından taş çek
 drawPile.addEventListener('click', () => {
@@ -1939,9 +2076,12 @@ socket.on('tileDrawn', (data) => {
     gameState.mustOpenHand = data.mustOpenHand || false;
 
     renderPlayerHand();
+    updateTurnActionUI(true);
     playSound('draw');
 
-    if (data.mustOpenHand && !gameState.hasOpened) {
+    if (data.auto) {
+        showToast('Süre: yığından otomatik çekildi', 'info');
+    } else if (data.mustOpenHand && !gameState.hasOpened) {
         showToast('⚠️ Yerden taş aldınız! El açmak ZORUNLU, yoksa 101 ceza!', 'error');
     } else {
         showToast(data.fromDiscard ? 'Atılandan taş çekildi!' : 'Yığından taş çekildi!', 'info');
@@ -2024,7 +2164,11 @@ socket.on('tileDiscarded', (data) => {
     console.log(`[DEBUG] Turn Change: Old=${gameState.currentPlayer}, New=${data.nextPlayer}, Me=${gameState.playerIndex}`);
     gameState.currentPlayer = data.nextPlayer;
     gameState.hasDrawn = false;
-    updateTurnIndicator(); // Force update UI immediately
+    updateTurnIndicator();
+
+    if (data.turnEndsAt) {
+        startClientTurnTimer({ turnEndsAt: data.turnEndsAt });
+    }
 
     // Oyuncu taş sayılarını güncelle
     if (gameState.players[data.playerIndex]) {
@@ -2034,7 +2178,7 @@ socket.on('tileDiscarded', (data) => {
     renderPlayerHand();
     updatePlayersDisplay();
     updateTurnIndicator();
-    playSound('discard');
+    playSound(data.auto ? 'turn' : 'discard');
 });
 
 socket.on('tilesSorted', (data) => {

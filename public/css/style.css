@@ -804,9 +804,136 @@ body {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    /* Hafif 3D Eğim - İPTAL (Tıklama Sorunu İçin) */
-    /* transform: rotateX(5deg); */
-    /* transform-origin: bottom center; */
+    border: 3px solid transparent;
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.cue-timer-ring {
+    pointer-events: none;
+    position: absolute;
+    inset: -4px;
+    border-radius: 14px 14px 0 0;
+    border: 3px solid transparent;
+    z-index: 5;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+    opacity: 0;
+}
+
+.cue-wood.timer-active .cue-timer-ring {
+    opacity: 1;
+    border-color: rgba(251, 191, 36, 0.55);
+    box-shadow: 0 0 18px rgba(251, 191, 36, 0.25);
+}
+
+.cue-wood.timer-warn {
+    border-color: #facc15;
+}
+
+.cue-wood.timer-warn .cue-timer-ring {
+    border-color: #facc15;
+    box-shadow: 0 0 22px rgba(250, 204, 21, 0.55);
+    animation: cuePulseWarn 1s ease-in-out infinite;
+}
+
+.cue-wood.timer-danger {
+    border-color: #ef4444;
+}
+
+.cue-wood.timer-danger .cue-timer-ring {
+    border-color: #ef4444;
+    box-shadow: 0 0 26px rgba(239, 68, 68, 0.65);
+    animation: cuePulseDanger 0.55s ease-in-out infinite;
+}
+
+@keyframes cuePulseWarn {
+    0%, 100% { opacity: 0.75; }
+    50% { opacity: 1; }
+}
+
+@keyframes cuePulseDanger {
+    0%, 100% { opacity: 0.55; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.01); }
+}
+
+.turn-banner {
+    position: absolute;
+    top: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 40;
+    padding: 10px 22px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    letter-spacing: 0.02em;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    white-space: nowrap;
+    max-width: 92vw;
+    text-align: center;
+}
+
+.turn-banner.draw-phase {
+    background: rgba(251, 191, 36, 0.92);
+    color: #0f172a;
+    animation: bannerPulse 1.2s ease-in-out infinite;
+}
+
+.turn-banner.discard-phase {
+    background: rgba(16, 185, 129, 0.9);
+    color: #052e1c;
+}
+
+@keyframes bannerPulse {
+    0%, 100% { transform: translateX(-50%) scale(1); }
+    50% { transform: translateX(-50%) scale(1.03); }
+}
+
+.turn-action-hint.hint-draw .value {
+    color: #fbbf24;
+}
+
+.turn-action-hint.hint-discard .value {
+    color: #34d399;
+}
+
+.turn-timer-value.timer-warn {
+    color: #facc15 !important;
+}
+
+.turn-timer-value.timer-danger {
+    color: #f87171 !important;
+    animation: timerBlink 0.6s step-end infinite;
+}
+
+@keyframes timerBlink {
+    50% { opacity: 0.35; }
+}
+
+.need-draw-pulse {
+    outline: 3px solid rgba(251, 191, 36, 0.85);
+    outline-offset: 4px;
+    animation: needDrawPulse 1s ease-in-out infinite;
+    border-radius: 10px;
+}
+
+@keyframes needDrawPulse {
+    0%, 100% { outline-color: rgba(251, 191, 36, 0.35); }
+    50% { outline-color: rgba(251, 191, 36, 1); }
+}
+
+.player-discard.need-draw-pulse {
+    outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+    .turn-banner {
+        top: 72px;
+        font-size: 0.8rem;
+        padding: 8px 14px;
+        white-space: normal;
+    }
 }
 
 /* Istaka Rafları */

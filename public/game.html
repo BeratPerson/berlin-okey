@@ -100,11 +100,26 @@
                     <span id="currentPlayerName" class="value">-</span>
                 </div>
                 <div class="divider"></div>
+                <div id="turnActionHint" class="status-item turn-action-hint hidden">
+                    <span class="label">Hamle:</span>
+                    <span id="turnActionText" class="value">-</span>
+                </div>
+                <div class="divider turn-action-divider hidden"></div>
+                <div class="status-item">
+                    <span class="label">Süre:</span>
+                    <span id="turnTimerValue" class="value turn-timer-value">30</span>
+                </div>
+                <div class="divider"></div>
                 <div class="status-item">
                     <span class="label">Kalan:</span>
                     <span id="pileCount" class="value">0</span>
                 </div>
             </div>
+        </div>
+
+        <!-- Sıra / çekme banner -->
+        <div id="turnBanner" class="turn-banner hidden">
+            <span id="turnBannerText">Senin sıran — taş çek!</span>
         </div>
 
         <!-- Oyun Tahtası -->
@@ -234,7 +249,8 @@
 
                 <!-- Istaka Yapısı -->
                 <div class="cue-container">
-                    <div class="cue-wood">
+                    <div class="cue-wood" id="cueWood">
+                        <div class="cue-timer-ring" aria-hidden="true"></div>
                         <!-- Üst Raf -->
                         <div id="playerHandTop" class="cue-row top-row" data-row="0">
                             <!-- Taşlar buraya -->

@@ -20,6 +20,12 @@ const io = new Server(server, {
 
 const roomManager = new RoomManager();
 
+// Online 101 Okey: Okey 101 Plus 15/30/60 sn; Yudum en fazla 60 sn.
+// Dengeli varsayılan: 30 sn. Sarı ≤15 sn, kırmızı ≤8 sn.
+const TURN_SECONDS = 30;
+const TURN_WARN_SECONDS = 15;
+const TURN_DANGER_SECONDS = 8;
+
 app.use(express.static(path.join(__dirname, '../public')));
 app.use('/asset', express.static(path.join(__dirname, '../asset')));
 
@@ -60,11 +66,143 @@ function gamePlayersPayload(room) {
     }));
 }
 
+function clearTurnTimer(room) {
+    if (room.turnTimer) {
+        clearTimeout(room.turnTimer);
+        room.turnTimer = null;
+    }
+}
+
+function emitTurnTimer(room) {
+    if (!room.game) return;
+    io.to(room.code).emit('turnTimer', {
+        currentPlayer: room.game.currentPlayer,
+        turnEndsAt: room.turnEndsAt,
+        turnSeconds: TURN_SECONDS,
+        hasDrawn: !!room.game.hasDrawn,
+        warnSeconds: TURN_WARN_SECONDS,
+        dangerSeconds: TURN_DANGER_SECONDS
+    });
+}
+
+function beginTurnTimer(room) {
+    if (!room.game || !room.gameStarted) return;
+    clearTurnTimer(room);
+    room.turnEndsAt = Date.now() + TURN_SECONDS * 1000;
+    room.turnTimer = setTimeout(() => {
+        handleTurnTimeout(room).catch((err) => {
+            Logger.error(`Tur zaman aşımı: ${err.message}`);
+        });
+    }, TURN_SECONDS * 1000);
+    emitTurnTimer(room);
+}
+
+function pickAutoDiscardIndex(room, playerIndex) {
+    const tiles = room.game.playerTiles[playerIndex];
+    if (!tiles || tiles.length === 0) return -1;
+
+    let bestIdx = -1;
+    let bestValue = -1;
+    for (let i = 0; i < tiles.length; i++) {
+        const tile = tiles[i];
+        if (room.game.isOkey(tile)) continue;
+        const value = room.game.getTileValue(tile);
+        if (value > bestValue) {
+            bestValue = value;
+            bestIdx = i;
+        }
+    }
+    if (bestIdx === -1) {
+        // Hepsi okey ise son taşı at
+        bestIdx = tiles.length - 1;
+    }
+    return bestIdx;
+}
+
+async function handleTurnTimeout(room) {
+    if (!room.game || !room.gameStarted) return;
+
+    const playerIndex = room.game.currentPlayer;
+    const player = room.players[playerIndex];
+    if (!player) return;
+
+    Logger.warn(`⏱️ Süre doldu: ${player.name} (oda ${room.code})`);
+
+    if (!room.game.hasDrawn) {
+        const tile = room.game.drawFromPile(playerIndex);
+        if (!tile) {
+            Logger.warn('Otomatik çekme başarısız — yığın boş');
+            beginTurnTimer(room);
+            return;
+        }
+        room.game.hasDrawn = true;
+        room.game.playerTiles[playerIndex].push(tile);
+
+        const playerSocket = io.sockets.sockets.get(player.socketId);
+        if (playerSocket) {
+            playerSocket.emit('tileDrawn', {
+                tile,
+                fromDiscard: false,
+                mustOpenHand: false,
+                auto: true
+            });
+        }
+        io.to(room.code).emit('playerDrewTile', {
+            playerIndex,
+            fromDiscard: false,
+            tileCount: room.game.playerTiles[playerIndex].length,
+            auto: true
+        });
+        io.to(room.code).emit('pileUpdate', {
+            count: room.game.getRemainingTileCount()
+        });
+    }
+
+    const tileIndex = pickAutoDiscardIndex(room, playerIndex);
+    if (tileIndex === -1) {
+        beginTurnTimer(room);
+        return;
+    }
+
+    const discardedTile = room.game.discardTile(playerIndex, tileIndex);
+    if (!discardedTile) {
+        beginTurnTimer(room);
+        return;
+    }
+
+    room.game.currentPlayer = (room.game.currentPlayer + 1) % 4;
+    room.game.hasDrawn = false;
+    const nextPlayer = room.game.currentPlayer;
+    const leftDiscard = room.game.getLeftDiscard(nextPlayer);
+
+    io.to(room.code).emit('tileDiscarded', {
+        playerIndex,
+        tile: discardedTile,
+        nextPlayer,
+        tileCount: room.game.playerTiles[playerIndex].length,
+        leftDiscard,
+        isPlayableTile: false,
+        auto: true,
+        turnEndsAt: null
+    });
+
+    io.to(room.code).emit('turnTimeout', {
+        playerIndex,
+        playerName: player.name
+    });
+
+    beginTurnTimer(room);
+}
+
 function startGame(room) {
+    clearTurnTimer(room);
     room.gameStarted = true;
     room.game = new GameLogic();
     room.game.startGame(room.players);
     room.minimumOpenScore = 101;
+    // İlk oyuncu 22 taşla başlar → çekmiş sayılır
+    room.game.hasDrawn = true;
+    room.turnEndsAt = Date.now() + TURN_SECONDS * 1000;
 
     room.players.forEach((player, index) => {
         const playerSocket = io.sockets.sockets.get(player.socketId);
@@ -79,12 +217,18 @@ function startGame(room) {
                 playerIndex: index,
                 teamMode: room.teamMode,
                 scores: room.scores,
-                pileCount: room.game.getRemainingTileCount()
+                pileCount: room.game.getRemainingTileCount(),
+                turnEndsAt: room.turnEndsAt,
+                turnSeconds: TURN_SECONDS,
+                hasDrawn: index === room.game.currentPlayer,
+                warnSeconds: TURN_WARN_SECONDS,
+                dangerSeconds: TURN_DANGER_SECONDS
             });
         }
     });
 
     Logger.game(`🎮 Oda ${room.code} başladı! Başlayan: ${room.players[room.game.currentPlayer].name}`);
+    beginTurnTimer(room);
 }
 
 function attachPlayerToSocket(socket, room, playerName, avatar) {
@@ -372,6 +516,8 @@ io.on('connection', (socket) => {
                 count: room.game.getRemainingTileCount()
             });
         }
+
+        emitTurnTimer(room);
     });
 
     socket.on('discardTile', (data) => {
@@ -450,6 +596,8 @@ io.on('connection', (socket) => {
             leftDiscard,
             isPlayableTile
         });
+
+        beginTurnTimer(room);
     });
 
     socket.on('sortTiles', (data) => {
@@ -664,6 +812,7 @@ io.on('connection', (socket) => {
             tiles: room.game.playerTiles,
             teamMode: room.teamMode
         });
+        clearTurnTimer(room);
     });
 
     socket.on('newRound', () => {
