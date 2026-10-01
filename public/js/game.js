@@ -601,17 +601,53 @@ function updateLeftDiscard(tile) {
 function clearDiscardAreas() {
     if (leftDiscardTiles) leftDiscardTiles.innerHTML = '';
     if (rightDiscardTiles) rightDiscardTiles.innerHTML = '';
+    ['topDiscardTiles', 'leftSeatDiscardTiles', 'rightSeatDiscardTiles'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '';
+    });
+}
+
+function setSeatDiscard(displayPos, tile) {
+    const idMap = {
+        top: 'topDiscardTiles',
+        left: 'leftSeatDiscardTiles',
+        right: 'rightSeatDiscardTiles',
+        bottom: null
+    };
+    const id = idMap[displayPos];
+    if (!id) return;
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = '';
+    if (tile) {
+        el.appendChild(createDisplayTile(tile, { interactive: false, size: 'discard' }));
+    }
+}
+
+function renderClosedHandFan(displayPos, count) {
+    const el = document.getElementById(`${displayPos}ClosedHand`);
+    if (!el) return;
+    el.innerHTML = '';
+    const n = Math.max(0, Math.min(14, Number(count) || 0));
+    const show = Math.min(n, displayPos === 'top' ? 12 : 10);
+    for (let i = 0; i < show; i++) {
+        const back = document.createElement('span');
+        back.className = 'mini-back';
+        el.appendChild(back);
+    }
 }
 
 // Legacy fonksiyonlar (eski kod uyumluluğu için)
 function updateDiscardDisplay(playerIndex, tile) {
     const relativePos = (playerIndex - gameState.playerIndex + 4) % 4;
+    const positionMap = { 0: 'bottom', 1: 'right', 2: 'top', 3: 'left' };
+    const displayPos = positionMap[relativePos];
 
     if (relativePos === 0) {
-        // Biz attık - sağda göster
         addToMyDiscards(tile);
+    } else {
+        setSeatDiscard(displayPos, tile);
     }
-    // Diğer oyuncuların atıkları şimdilik merkez alanda görünür
 }
 
 function updateLeftDiscardDisplay(tile) {
@@ -658,7 +694,11 @@ function updatePlayersDisplay() {
 
         if (nameEl) nameEl.textContent = displayName;
         if (countEl) {
-            countEl.textContent = player.tileCount || (relativePos === 0 ? gameState.tiles.length : 21);
+            const tileCount = player.tileCount || (relativePos === 0 ? gameState.tiles.length : 21);
+            countEl.textContent = tileCount;
+            if (relativePos !== 0) {
+                renderClosedHandFan(displayPos, tileCount);
+            }
         }
         if (scoreEl) {
             const score = gameState.scores ? (gameState.scores[player.name] ?? 0) : 0;

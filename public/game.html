@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/okey-table.css">
     <link rel="stylesheet" href="css/atmosphere.css">
+    <link rel="stylesheet" href="css/okey-plus.css">
 </head>
 
 <body class="phone-layout game-page">
@@ -99,24 +100,24 @@
             </div>
 
             <!-- Sağ Üst: Oyun Durumu -->
-            <div class="game-status-panel glass-panel">
+    <div class="game-status-panel glass-panel">
                 <div id="turnIndicator" class="status-item">
-                    <span class="label">Sıra:</span>
+                    <span class="label">Sıra</span>
                     <span id="currentPlayerName" class="value">-</span>
                 </div>
                 <div class="divider"></div>
                 <div id="turnActionHint" class="status-item turn-action-hint hidden">
-                    <span class="label">Hamle:</span>
+                    <span class="label">Hamle</span>
                     <span id="turnActionText" class="value">-</span>
                 </div>
                 <div class="divider turn-action-divider hidden"></div>
-                <div class="status-item">
-                    <span class="label">Süre:</span>
+                <div class="status-item timer-item">
+                    <span class="label">Süre</span>
                     <span id="turnTimerValue" class="value turn-timer-value">30</span>
                 </div>
                 <div class="divider"></div>
                 <div class="status-item">
-                    <span class="label">Kalan:</span>
+                    <span class="label">Yığın</span>
                     <span id="pileCount" class="value">0</span>
                 </div>
             </div>
@@ -129,14 +130,15 @@
 
         <!-- Oyun Tahtası -->
         <div class="game-board" id="gameBoard">
-            <!-- Masa Ortası: açık taşlar + sağda gösterge/yığın -->
+            <div class="felt-oval" aria-hidden="true">
+                <div class="felt-oval-inner"></div>
+            </div>
+
+            <!-- Masa Ortası: açık taşlar + gösterge / yığın / okey -->
             <div class="table-center okey-center">
                 <div class="meld-board" id="meldBoard">
-                    <div class="meld-board-label">Açık Taşlar</div>
-                    <div class="meld-groups" id="meldGroups">
-                        <!-- Tüm oyuncuların açtığı gruplar -->
-                    </div>
-                    <!-- Eski pozisyon alanları (JS uyumu) -->
+                    <div class="meld-board-label">Açılanlar</div>
+                    <div class="meld-groups" id="meldGroups"></div>
                     <div id="openedTilesTable" class="opened-tiles-table meld-source-hidden">
                         <div id="openedTop" class="opened-player-area top" data-player="top"></div>
                         <div id="openedLeft" class="opened-player-area left" data-player="left"></div>
@@ -145,27 +147,29 @@
                     </div>
                 </div>
 
-                <div class="center-stack">
-                    <div class="indicator-slot stack-item" title="Gösterge">
-                        <span class="slot-label">Gösterge</span>
-                        <div id="indicatorTile" class="tile-placeholder sprite-tile-host"></div>
-                    </div>
-                    <div class="pile-section stack-item">
-                        <div id="drawPile" class="pile-stack" title="Yığından çek">
-                            <div class="pile-tile-back"></div>
-                            <div class="pile-tile-back"></div>
-                            <div class="pile-tile-back"></div>
-                            <span class="pile-count-badge" id="pileCountCenter">0</span>
+                <div class="center-island">
+                    <div class="center-stack">
+                        <div class="indicator-slot stack-item" title="Gösterge">
+                            <span class="slot-label">Gösterge</span>
+                            <div id="indicatorTile" class="tile-placeholder sprite-tile-host"></div>
                         </div>
-                        <span class="area-label">Yığın</span>
-                    </div>
-                    <div class="indicator-slot stack-item" title="Okey">
-                        <span class="slot-label">Okey</span>
-                        <div id="okeyTile" class="tile-placeholder sprite-tile-host"></div>
-                    </div>
-                    <div class="discard-section stack-item hidden-legacy">
-                        <div id="discardPile" class="discard-stack" title="Atılandan Çek">
-                            <div class="discard-placeholder">Atılan</div>
+                        <div class="pile-section stack-item">
+                            <div id="drawPile" class="pile-stack" title="Yığından çek">
+                                <div class="pile-tile-back"></div>
+                                <div class="pile-tile-back"></div>
+                                <div class="pile-tile-back"></div>
+                                <span class="pile-count-badge" id="pileCountCenter">0</span>
+                            </div>
+                            <span class="area-label">Yığın</span>
+                        </div>
+                        <div class="indicator-slot stack-item" title="Okey">
+                            <span class="slot-label">Okey</span>
+                            <div id="okeyTile" class="tile-placeholder sprite-tile-host"></div>
+                        </div>
+                        <div class="discard-section stack-item hidden-legacy">
+                            <div id="discardPile" class="discard-stack" title="Atılandan Çek">
+                                <div class="discard-placeholder">Atılan</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -173,54 +177,75 @@
 
             <!-- Üst Rakip -->
             <div class="opponent-area top">
-                <div id="topPlayerInfo" class="player-info seat-profile" data-position="top">
-                    <div class="avatar-wrapper">
-                        <div id="topPlayerFace" class="profile-face" data-profile="p-amber">?</div>
-                        <img id="topPlayerAvatar" class="player-avatar hidden" src="" alt="">
-                        <div class="turn-badge"></div>
-                    </div>
-                    <div class="player-details">
-                        <span class="player-name" id="topPlayerName">-</span>
-                        <div class="player-meta">
-                            <span class="tile-count-badge" id="topTileCount">0</span>
-                            <span class="player-score" id="topPlayerScore">0</span>
+                <div class="seat-cluster">
+                    <div id="topPlayerInfo" class="player-info seat-profile" data-position="top">
+                        <div class="avatar-wrapper">
+                            <div id="topPlayerFace" class="profile-face" data-profile="p-amber">?</div>
+                            <img id="topPlayerAvatar" class="player-avatar hidden" src="" alt="">
+                            <div class="turn-ring"></div>
+                            <div class="turn-badge"></div>
                         </div>
+                        <div class="player-details">
+                            <span class="player-name" id="topPlayerName">-</span>
+                            <div class="player-meta">
+                                <span class="tile-count-badge" id="topTileCount">0</span>
+                                <span class="player-score" id="topPlayerScore">0</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="closed-hand-fan" id="topClosedHand" aria-hidden="true"></div>
+                    <div class="seat-discard" id="topDiscardPocket">
+                        <div class="discard-tiles" id="topDiscardTiles"></div>
                     </div>
                 </div>
             </div>
 
             <!-- Sol Rakip -->
             <div class="opponent-area left">
-                <div id="leftPlayerInfo" class="player-info seat-profile" data-position="left">
-                    <div class="avatar-wrapper">
-                        <div id="leftPlayerFace" class="profile-face" data-profile="p-teal">?</div>
-                        <img id="leftPlayerAvatar" class="player-avatar hidden" src="" alt="">
-                        <div class="turn-badge"></div>
-                    </div>
-                    <div class="player-details">
-                        <span class="player-name" id="leftPlayerName">-</span>
-                        <div class="player-meta">
-                            <span class="tile-count-badge" id="leftTileCount">0</span>
-                            <span class="player-score" id="leftPlayerScore">0</span>
+                <div class="seat-cluster">
+                    <div id="leftPlayerInfo" class="player-info seat-profile" data-position="left">
+                        <div class="avatar-wrapper">
+                            <div id="leftPlayerFace" class="profile-face" data-profile="p-teal">?</div>
+                            <img id="leftPlayerAvatar" class="player-avatar hidden" src="" alt="">
+                            <div class="turn-ring"></div>
+                            <div class="turn-badge"></div>
                         </div>
+                        <div class="player-details">
+                            <span class="player-name" id="leftPlayerName">-</span>
+                            <div class="player-meta">
+                                <span class="tile-count-badge" id="leftTileCount">0</span>
+                                <span class="player-score" id="leftPlayerScore">0</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="closed-hand-fan" id="leftClosedHand" aria-hidden="true"></div>
+                    <div class="seat-discard" id="leftDiscardPocket">
+                        <div class="discard-tiles" id="leftSeatDiscardTiles"></div>
                     </div>
                 </div>
             </div>
 
             <!-- Sağ Rakip -->
             <div class="opponent-area right">
-                <div id="rightPlayerInfo" class="player-info seat-profile" data-position="right">
-                    <div class="avatar-wrapper">
-                        <div id="rightPlayerFace" class="profile-face" data-profile="p-coral">?</div>
-                        <img id="rightPlayerAvatar" class="player-avatar hidden" src="" alt="">
-                        <div class="turn-badge"></div>
-                    </div>
-                    <div class="player-details">
-                        <span class="player-name" id="rightPlayerName">-</span>
-                        <div class="player-meta">
-                            <span class="tile-count-badge" id="rightTileCount">0</span>
-                            <span class="player-score" id="rightPlayerScore">0</span>
+                <div class="seat-cluster">
+                    <div id="rightPlayerInfo" class="player-info seat-profile" data-position="right">
+                        <div class="avatar-wrapper">
+                            <div id="rightPlayerFace" class="profile-face" data-profile="p-coral">?</div>
+                            <img id="rightPlayerAvatar" class="player-avatar hidden" src="" alt="">
+                            <div class="turn-ring"></div>
+                            <div class="turn-badge"></div>
                         </div>
+                        <div class="player-details">
+                            <span class="player-name" id="rightPlayerName">-</span>
+                            <div class="player-meta">
+                                <span class="tile-count-badge" id="rightTileCount">0</span>
+                                <span class="player-score" id="rightPlayerScore">0</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="closed-hand-fan" id="rightClosedHand" aria-hidden="true"></div>
+                    <div class="seat-discard" id="rightDiscardPocket">
+                        <div class="discard-tiles" id="rightSeatDiscardTiles"></div>
                     </div>
                 </div>
             </div>
@@ -228,17 +253,18 @@
             <!-- Alt: Istaka + ÇİFT / SERİ -->
             <div class="player-area bottom">
                 <div class="player-discard left-discard" id="myLeftDiscard">
-                    <div class="discard-label">⬅ Çek</div>
+                    <div class="discard-label">Çek</div>
                     <div class="discard-tiles" id="leftDiscardTiles"></div>
                 </div>
 
                 <button type="button" id="sortPairsBtn" class="rack-sort-btn sort-pairs" title="Çiftlere göre diz">
-                    <span class="sort-icon">7️⃣7️⃣</span>
                     <span class="sort-text">ÇİFT</span>
                 </button>
 
                 <div class="cue-container">
                     <div class="cue-wood" id="cueWood">
+                        <div class="cue-rim cue-rim-top" aria-hidden="true"></div>
+                        <div class="cue-rim cue-rim-bottom" aria-hidden="true"></div>
                         <div class="cue-timer-ring" aria-hidden="true"></div>
                         <div id="playerHandTop" class="cue-row top-row" data-row="0"></div>
                         <div id="playerHandBottom" class="cue-row bottom-row" data-row="1"></div>
@@ -246,12 +272,11 @@
                 </div>
 
                 <button type="button" id="sortSeriesBtn" class="rack-sort-btn sort-series" title="Serilere göre diz">
-                    <span class="sort-icon">1️⃣2️⃣3️⃣</span>
                     <span class="sort-text">SERİ</span>
                 </button>
 
                 <div class="player-discard right-discard" id="myRightDiscard" title="Taşı buraya sürükle veya seçip tıkla">
-                    <div class="discard-label">At ➡</div>
+                    <div class="discard-label">At</div>
                     <div class="discard-tiles" id="rightDiscardTiles"></div>
                 </div>
 
@@ -259,6 +284,7 @@
                     <div class="avatar-wrapper">
                         <div id="bottomPlayerFace" class="profile-face" data-profile="p-amber">?</div>
                         <img id="bottomPlayerAvatar" class="player-avatar hidden" src="" alt="">
+                        <div class="turn-ring"></div>
                         <div class="turn-badge"></div>
                     </div>
                     <div class="player-details">
@@ -274,9 +300,9 @@
 
         <!-- Aksiyon Butonları -->
         <div class="action-buttons">
-            <button id="openHandBtn" class="action-btn open-hand" title="El Aç (101+ puan)">📖 El Aç</button>
+            <button id="openHandBtn" class="action-btn open-hand" title="El Aç (101+ puan)">El Aç</button>
             <div id="handScoreBadge" class="hand-score-badge">0/101</div>
-            <button id="finishBtn" class="action-btn finish" disabled title="Oyunu Bitir">✨ Bitir</button>
+            <button id="finishBtn" class="action-btn finish" disabled title="Oyunu Bitir">Bitir</button>
         </div>
 
         <!-- 🍅 Domates Fırlatma Butonu -->
