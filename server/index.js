@@ -101,22 +101,50 @@ function pickAutoDiscardIndex(room, playerIndex) {
     const tiles = room.game.playerTiles[playerIndex];
     if (!tiles || tiles.length === 0) return -1;
 
-    let bestIdx = -1;
-    let bestValue = -1;
+    // Önce okey olmayanlardan rastgele; yoksa herhangi birinden rastgele
+    const nonOkeyIndices = [];
     for (let i = 0; i < tiles.length; i++) {
-        const tile = tiles[i];
-        if (room.game.isOkey(tile)) continue;
-        const value = room.game.getTileValue(tile);
-        if (value > bestValue) {
-            bestValue = value;
-            bestIdx = i;
-        }
+        if (!room.game.isOkey(tiles[i])) nonOkeyIndices.push(i);
     }
-    if (bestIdx === -1) {
-        // Hepsi okey ise son taşı at
-        bestIdx = tiles.length - 1;
+    const pool = nonOkeyIndices.length > 0 ? nonOkeyIndices : tiles.map((_, i) => i);
+    return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function resolveDiscardIndex(room, playerIndex, data = {}) {
+    const tiles = room.game.playerTiles[playerIndex] || [];
+    if (data.tileId != null) {
+        const byId = tiles.findIndex(t => t && String(t.id) === String(data.tileId));
+        if (byId !== -1) return byId;
     }
-    return bestIdx;
+    if (typeof data.tileIndex === 'number' && data.tileIndex >= 0 && data.tileIndex < tiles.length) {
+        return data.tileIndex;
+    }
+    return -1;
+}
+
+function applyDiscardAndAdvance(room, playerIndex, tileIndex, { isPlayableTile = false, auto = false } = {}) {
+    const discardedTile = room.game.discardTile(playerIndex, tileIndex);
+    if (!discardedTile || discardedTile.error) {
+        return { ok: false, error: discardedTile && discardedTile.error ? discardedTile.error : 'Geçersiz taş!' };
+    }
+
+    room.game.currentPlayer = (room.game.currentPlayer + 1) % 4;
+    room.game.hasDrawn = false;
+    const nextPlayer = room.game.currentPlayer;
+    const leftDiscard = room.game.getLeftDiscard(nextPlayer);
+
+    io.to(room.code).emit('tileDiscarded', {
+        playerIndex,
+        tile: discardedTile,
+        nextPlayer,
+        tileCount: room.game.playerTiles[playerIndex].length,
+        leftDiscard,
+        isPlayableTile,
+        auto
+    });
+
+    beginTurnTimer(room);
+    return { ok: true, tile: discardedTile };
 }
 
 async function handleTurnTimeout(room) {
@@ -164,34 +192,17 @@ async function handleTurnTimeout(room) {
         return;
     }
 
-    const discardedTile = room.game.discardTile(playerIndex, tileIndex);
-    if (!discardedTile) {
+    const result = applyDiscardAndAdvance(room, playerIndex, tileIndex, { auto: true });
+    if (!result.ok) {
+        Logger.warn(`Otomatik atma başarısız: ${result.error}`);
         beginTurnTimer(room);
         return;
     }
-
-    room.game.currentPlayer = (room.game.currentPlayer + 1) % 4;
-    room.game.hasDrawn = false;
-    const nextPlayer = room.game.currentPlayer;
-    const leftDiscard = room.game.getLeftDiscard(nextPlayer);
-
-    io.to(room.code).emit('tileDiscarded', {
-        playerIndex,
-        tile: discardedTile,
-        nextPlayer,
-        tileCount: room.game.playerTiles[playerIndex].length,
-        leftDiscard,
-        isPlayableTile: false,
-        auto: true,
-        turnEndsAt: null
-    });
 
     io.to(room.code).emit('turnTimeout', {
         playerIndex,
         playerName: player.name
     });
-
-    beginTurnTimer(room);
 }
 
 function startGame(room) {
@@ -535,7 +546,12 @@ io.on('connection', (socket) => {
             return;
         }
 
-        const tileIndex = data.tileIndex;
+        const tileIndex = resolveDiscardIndex(room, playerIndex, data || {});
+        if (tileIndex === -1) {
+            socket.emit('error', { message: 'Geçersiz taş! Taşı tekrar seçip sağdaki At alanına sürükle.' });
+            return;
+        }
+
         const tileToDiscard = room.game.playerTiles[playerIndex][tileIndex];
         if (!tileToDiscard) {
             socket.emit('error', { message: 'Geçersiz taş!' });
@@ -577,27 +593,10 @@ io.on('connection', (socket) => {
             Logger.warn(`⚠️ ${socket.playerName} işler taş attı! +101 ceza`);
         }
 
-        const discardedTile = room.game.discardTile(playerIndex, tileIndex);
-        if (!discardedTile) {
-            socket.emit('error', { message: 'Geçersiz taş!' });
-            return;
+        const result = applyDiscardAndAdvance(room, playerIndex, tileIndex, { isPlayableTile });
+        if (!result.ok) {
+            socket.emit('error', { message: result.error || 'Taş atılamadı!' });
         }
-
-        room.game.currentPlayer = (room.game.currentPlayer + 1) % 4;
-        room.game.hasDrawn = false;
-        const nextPlayer = room.game.currentPlayer;
-        const leftDiscard = room.game.getLeftDiscard(nextPlayer);
-
-        io.to(room.code).emit('tileDiscarded', {
-            playerIndex,
-            tile: discardedTile,
-            nextPlayer,
-            tileCount: room.game.playerTiles[playerIndex].length,
-            leftDiscard,
-            isPlayableTile
-        });
-
-        beginTurnTimer(room);
     });
 
     socket.on('sortTiles', (data) => {

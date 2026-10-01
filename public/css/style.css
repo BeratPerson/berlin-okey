@@ -923,6 +923,31 @@ body {
     50% { outline-color: rgba(251, 191, 36, 1); }
 }
 
+.need-discard-pulse {
+    outline: 3px solid rgba(239, 68, 68, 0.95) !important;
+    outline-offset: 4px;
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 22px rgba(239, 68, 68, 0.55) !important;
+    animation: needDiscardPulse 0.85s ease-in-out infinite;
+    z-index: 80;
+}
+
+.need-discard-pulse .discard-label {
+    color: #fecaca !important;
+    font-weight: 800;
+}
+
+@keyframes needDiscardPulse {
+    0%, 100% {
+        outline-color: rgba(239, 68, 68, 0.45);
+        transform: scale(1);
+    }
+    50% {
+        outline-color: rgba(239, 68, 68, 1);
+        transform: scale(1.06);
+    }
+}
+
 .player-discard.need-draw-pulse {
     outline-offset: 2px;
 }

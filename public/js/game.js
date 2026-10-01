@@ -36,6 +36,7 @@ let gameState = {
     teamMode: false,
     scores: {},
     selectedTile: null,
+    selectedTileId: null,
     hasDrawn: false,
 
     // Slot Sistemi (2 sıra x 13 = 26 slot)
@@ -924,28 +925,13 @@ function onMouseUp(e) {
         }
 
         if (droppedOnRightDiscard) {
-            // THROW ACTION
+            // THROW ACTION — slot index değil tileId ile at
             if (draggedIndex >= 0 && draggedIndex < SLOT_COUNT) {
-                // Istakadan atılmış
                 const tileToThrow = gameState.slots[draggedIndex];
                 if (tileToThrow) {
-                    // GameState.tiles arrayindeki indexini bul (çünkü server index bekliyor)
-                    // NOT: syncTilesFromSlots en son yapılmış olmalı veya şimdi yapmalıyız
-                    // ama burada tile object referansı üzerinden bulmak daha güvenli.
-                    const tileIndex = gameState.tiles.indexOf(tileToThrow);
-
-                    if (tileIndex !== -1) {
-                        console.log('Discarding tile:', tileToThrow, 'Index:', tileIndex);
-                        socket.emit('discardTile', { tileIndex: tileIndex });
-                    } else {
-                        console.error('Tile to discard not found in gameState.tiles');
-                        // Fallback: belki senkronize değil, önce senkronize edip tekrar dene
-                        syncTilesFromSlots();
-                        const retryIndex = gameState.tiles.indexOf(tileToThrow);
-                        if (retryIndex !== -1) {
-                            socket.emit('discardTile', { tileIndex: retryIndex });
-                        }
-                    }
+                    requestDiscardTile(tileToThrow);
+                } else {
+                    showToast('Atılacak taş bulunamadı', 'error');
                 }
             }
         } else if (targetSlotIndex !== null) {
@@ -1146,22 +1132,31 @@ function touchDragMove(e, el) {
 function touchDragEnd(e, fromIndex) {
     if (!touchDraggedEl) return;
 
-    // Pozisyonu sıfırla
     touchDraggedEl.style.position = '';
     touchDraggedEl.style.zIndex = '';
     touchDraggedEl.style.left = '';
     touchDraggedEl.style.top = '';
     touchDraggedEl.classList.remove('dragging');
 
-    // Hedef taşı bul
     const touch = e.changedTouches[0];
     const elementAtPoint = document.elementFromPoint(touch.clientX, touch.clientY);
-    const targetTile = elementAtPoint?.closest('.tile-sprite');
+    const discardZone = elementAtPoint?.closest('.right-discard') || (elementAtPoint?.id === 'rightDiscardTiles' ? elementAtPoint : null);
 
+    if (discardZone) {
+        const tileToThrow = gameState.slots[fromIndex];
+        if (tileToThrow) {
+            requestDiscardTile(tileToThrow);
+        }
+        touchDraggedEl = null;
+        draggedIndex = null;
+        return;
+    }
+
+    const targetTile = elementAtPoint?.closest('.tile-sprite');
     if (targetTile && targetTile !== touchDraggedEl) {
         const targetIndex = parseInt(targetTile.dataset.index);
         if (!isNaN(targetIndex) && targetIndex !== fromIndex) {
-            moveTile(fromIndex, targetIndex);
+            moveTileInSlot(fromIndex, targetIndex);
         }
     }
 
@@ -1420,25 +1415,25 @@ function calculateGroupScore(indices) {
     }
 }
 
-// Taş seçimi
+// Taş seçimi (slot index)
 function selectTile(index) {
-    const tiles = document.querySelectorAll('.tile-sprite');
+    document.querySelectorAll('.tile-sprite').forEach(t => t.classList.remove('selected'));
 
     if (gameState.selectedTile === index) {
-        // Aynı taşa tıklandı, seçimi kaldır
-        tiles[index].classList.remove('selected');
         gameState.selectedTile = null;
-    } else {
-        // Önceki seçimi kaldır
-        if (gameState.selectedTile !== null && tiles[gameState.selectedTile]) {
-            tiles[gameState.selectedTile].classList.remove('selected');
-        }
-
-        // Yeni taşı seç
-        tiles[index].classList.add('selected');
-        gameState.selectedTile = index;
-        playSound('draw');
+        gameState.selectedTileId = null;
+        return;
     }
+
+    const tile = gameState.slots[index];
+    if (!tile) return;
+
+    const tileEl = document.querySelector(`.tile-sprite[data-index="${index}"]`);
+    if (tileEl) tileEl.classList.add('selected');
+
+    gameState.selectedTile = index;
+    gameState.selectedTileId = tile.id;
+    playSound('draw');
 }
 
 let lastTurnSoundKey = null;
@@ -1493,6 +1488,11 @@ function updateTurnActionUI(isMyTurn) {
     const leftDiscardEl = document.getElementById('myLeftDiscard');
     if (leftDiscardEl) {
         leftDiscardEl.classList.toggle('need-draw-pulse', needDraw);
+    }
+    const rightDiscardEl = document.getElementById('myRightDiscard');
+    if (rightDiscardEl) {
+        rightDiscardEl.classList.toggle('need-discard-pulse', needDiscard);
+        rightDiscardEl.classList.toggle('need-draw-pulse', false);
     }
 
     if (turnActionHint && turnActionText) {
@@ -1643,25 +1643,57 @@ if (cueContainer) {
 }
 
 function discardSelectedTile() {
+    if (gameState.selectedTileId != null) {
+        requestDiscardTile(gameState.selectedTileId);
+        return;
+    }
     if (gameState.selectedTile === null) {
         showToast('Önce bir taş seçin!', 'error');
         return;
     }
-    discardTile(gameState.selectedTile);
+    const tile = gameState.slots[gameState.selectedTile];
+    if (!tile) {
+        showToast('Önce bir taş seçin!', 'error');
+        return;
+    }
+    requestDiscardTile(tile);
 }
 
-function discardTile(index) {
+/** Slot index veya tile objesi → sunucuya tileId ile at */
+function discardTile(slotOrTile) {
+    const tile = typeof slotOrTile === 'object' && slotOrTile
+        ? slotOrTile
+        : gameState.slots[slotOrTile];
+    if (!tile) {
+        showToast('Geçersiz taş!', 'error');
+        return;
+    }
+    requestDiscardTile(tile);
+}
+
+function requestDiscardTile(tileOrId) {
     if (gameState.currentPlayer !== gameState.playerIndex) {
         showToast('Sıra sizde değil!', 'error');
-        return;
+        return false;
     }
-
     if (!gameState.hasDrawn) {
         showToast('Önce taş çekmelisiniz!', 'error');
-        return;
+        return false;
     }
 
-    socket.emit('discardTile', { tileIndex: index });
+    const tileId = typeof tileOrId === 'object' && tileOrId ? tileOrId.id : tileOrId;
+    if (tileId == null) {
+        showToast('Atılacak taş seçilmedi', 'error');
+        return false;
+    }
+
+    syncTilesFromSlots();
+    const denseIndex = gameState.tiles.findIndex(t => t && String(t.id) === String(tileId));
+    socket.emit('discardTile', {
+        tileId,
+        tileIndex: denseIndex >= 0 ? denseIndex : undefined
+    });
+    return true;
 }
 
 // Sıralama butonları kaldırıldı
@@ -1670,6 +1702,19 @@ function discardTile(index) {
 finishBtn.addEventListener('click', () => {
     socket.emit('finishGame', {});
 });
+
+// Sağ At alanına tıkla → seçili taşı at
+(function setupRightDiscardClick() {
+    const zone = document.getElementById('myRightDiscard');
+    if (!zone) return;
+    zone.addEventListener('click', () => {
+        if (gameState.selectedTileId != null || gameState.selectedTile !== null) {
+            discardSelectedTile();
+        } else {
+            showToast('Taş seç → sağdaki At alanına tıkla veya sürükle', 'info');
+        }
+    });
+})();
 
 // ============================================
 // 📖 EL AÇMA SİSTEMİ
@@ -2076,10 +2121,25 @@ document.getElementById('newRoundBtn').addEventListener('click', () => {
 
 // Socket Olayları
 socket.on('tileDrawn', (data) => {
-    safeCloseModals(); // Yeni taş geldiğinde modalı kapat (sıralama bozulabilir)
+    safeCloseModals();
     gameState.tiles.push(data.tile);
     gameState.hasDrawn = true;
     gameState.mustOpenHand = data.mustOpenHand || false;
+
+    // Yeni taşı boş bir slota yerleştir
+    if (!gameState.slots) gameState.slots = new Array(SLOT_COUNT).fill(null);
+    let placed = false;
+    for (let i = 0; i < SLOT_COUNT; i++) {
+        if (gameState.slots[i] === null) {
+            gameState.slots[i] = data.tile;
+            placed = true;
+            break;
+        }
+    }
+    if (!placed) {
+        // Slots doluysa yeniden diz
+        initializeSlotsFromTiles();
+    }
 
     renderPlayerHand();
     updateTurnActionUI(true);
@@ -2149,13 +2209,21 @@ socket.on('playerDrewTile', (data) => {
 
 socket.on('tileDiscarded', (data) => {
     if (data.playerIndex === gameState.playerIndex) {
-        // Kendi taşımızı attık - tile.id ile bul ve sil
-        const tileIndex = gameState.tiles.findIndex(t => t.id === data.tile.id);
+        // Slot ve tiles listesinden çıkar
+        if (gameState.slots) {
+            for (let i = 0; i < gameState.slots.length; i++) {
+                if (gameState.slots[i] && data.tile && String(gameState.slots[i].id) === String(data.tile.id)) {
+                    gameState.slots[i] = null;
+                }
+            }
+        }
+        const tileIndex = gameState.tiles.findIndex(t => t && data.tile && String(t.id) === String(data.tile.id));
         if (tileIndex !== -1) {
             gameState.tiles.splice(tileIndex, 1);
         }
         gameState.selectedTile = null;
-        safeCloseModals(); // Taş atıldığında modalı kapat
+        gameState.selectedTileId = null;
+        safeCloseModals();
     }
 
     // Atılan taşı atan oyuncunun konumunda göster
