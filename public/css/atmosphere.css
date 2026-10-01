@@ -327,6 +327,19 @@ body {
     color: var(--cream);
 }
 
+.capacity-line {
+    text-align: center;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: rgba(232, 184, 74, 0.85);
+    margin: -4px 0 2px;
+    letter-spacing: 0.04em;
+}
+
+.capacity-line.capacity-full {
+    color: #f87171;
+}
+
 .tg-user-badge {
     display: inline-block;
     margin-top: 10px;

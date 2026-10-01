@@ -17,6 +17,8 @@ const roomCodeInput = document.getElementById('roomCodeInput');
 const errorToast = document.getElementById('errorToast');
 const createRoomBtn = document.getElementById('createRoomBtn');
 const joinRoomBtn = document.getElementById('joinRoomBtn');
+const quickMatchBtn = document.getElementById('quickMatchBtn');
+const capacityLine = document.getElementById('capacityLine');
 const teamModeToggle = document.getElementById('teamModeToggle');
 const stackingModeToggle = document.getElementById('stackingModeToggle');
 const penaltyModeToggle = document.getElementById('penaltyModeToggle');
@@ -160,7 +162,7 @@ function saveSelections() {
     if (telegramPhotoUrl) sessionStorage.setItem('telegramPhotoUrl', telegramPhotoUrl);
 }
 
-function emitJoin({ createRoom, roomCode }) {
+function emitJoin({ createRoom, roomCode, quickMatch }) {
     resolvePlayerName();
     saveSelections();
     playSound('click');
@@ -174,6 +176,7 @@ function emitJoin({ createRoom, roomCode }) {
     socket.emit('joinGame', {
         playerName,
         createRoom: !!createRoom,
+        quickMatch: !!quickMatch,
         roomCode: roomCode || undefined,
         teamMode: teamModeToggle ? teamModeToggle.checked : false,
         stackingMode: stackingModeToggle ? stackingModeToggle.checked : false,
@@ -182,6 +185,22 @@ function emitJoin({ createRoom, roomCode }) {
         photoUrl: telegramPhotoUrl || undefined,
         telegramUserId
     });
+}
+
+function updateCapacityUI(cap) {
+    if (!capacityLine || !cap) return;
+    const players = cap.players ?? 0;
+    const max = cap.maxPlayers ?? 100;
+    capacityLine.textContent = `Çevrimiçi: ${players}/${max}`;
+    capacityLine.classList.toggle('capacity-full', !!cap.full);
+}
+
+async function fetchCapacity() {
+    try {
+        const res = await fetch('/api/capacity', { cache: 'no-store' });
+        if (!res.ok) return;
+        updateCapacityUI(await res.json());
+    } catch (_) { /* ignore */ }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -225,6 +244,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     refreshProfilePreview();
+    fetchCapacity();
+    setInterval(fetchCapacity, 15000);
 
     const urlParams = new URLSearchParams(window.location.search);
     let roomFromUrl = urlParams.get('room');
@@ -238,6 +259,10 @@ document.addEventListener('DOMContentLoaded', () => {
         roomCodeInput.value = roomFromUrl;
     }
 });
+
+if (quickMatchBtn) {
+    quickMatchBtn.addEventListener('click', () => emitJoin({ quickMatch: true }));
+}
 
 if (createRoomBtn) {
     createRoomBtn.addEventListener('click', () => emitJoin({ createRoom: true }));
@@ -260,9 +285,12 @@ if (roomCodeInput) {
     });
 }
 
+socket.on('capacityUpdate', (cap) => updateCapacityUI(cap));
+
 socket.on('joinedGame', (data) => {
     playSound('success');
     if (window.BerlinTelegram) BerlinTelegram.haptic('success');
+    if (data.capacity) updateCapacityUI(data.capacity);
 
     sessionStorage.setItem('lobbyData', JSON.stringify({
         roomCode: data.roomCode,

@@ -16,3 +16,7 @@ services:
         sync: false
       - key: BOT_TOKEN
         sync: false
+      - key: MAX_PLAYERS
+        value: "100"
+      - key: MAX_ROOMS
+        value: "40"

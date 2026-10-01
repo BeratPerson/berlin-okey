@@ -51,9 +51,10 @@ function buildStartMessage() {
         );
     }
     return (
-        `🎴 *Berlin Okey*\n\n` +
-        `4 arkadaşınla gerçek zamanlı 101 Okey!\n\n` +
-        `Aşağıdaki *Oyna* butonuna basarak Mini App'i aç.\n\n` +
+        `*Berlin Okey*\n\n` +
+        `Aynı anda 100 oyuncuya kadar · masalar 4 kişilik.\n` +
+        `*Hızlı Oyna* ile boş masaya otur veya özel oda kur.\n\n` +
+        `Aşağıdaki *Oyna* butonuna bas.\n\n` +
         `_Takım · Katlamalı · Cezalı modlar desteklenir._`
     );
 }

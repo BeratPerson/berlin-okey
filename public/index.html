@@ -86,12 +86,14 @@
             </div>
 
             <div class="room-actions">
-                <button id="createRoomBtn" class="btn btn-primary btn-large">Oda Oluştur</button>
+                <button id="quickMatchBtn" class="btn btn-primary btn-large">Hızlı Oyna</button>
+                <p class="capacity-line" id="capacityLine">Çevrimiçi: —/100</p>
+                <button id="createRoomBtn" class="btn btn-secondary btn-large">Özel Oda Oluştur</button>
                 <div class="room-join-row">
                     <input type="text" id="roomCodeInput" class="name-input room-code-input"
                         placeholder="6 haneli kod" maxlength="6" inputmode="numeric" pattern="[0-9]*"
                         autocomplete="off">
-                    <button id="joinRoomBtn" class="btn btn-secondary btn-large">Katıl</button>
+                    <button id="joinRoomBtn" class="btn btn-secondary btn-large">Koda Katıl</button>
                 </div>
             </div>
         </section>

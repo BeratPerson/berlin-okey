@@ -32,7 +32,16 @@ app.use(express.static(path.join(__dirname, '../public')));
 app.use('/asset', express.static(path.join(__dirname, '../asset')));
 
 app.get('/health', (req, res) => {
-    res.status(200).json({ ok: true, service: 'berlin-okey' });
+    const capacity = roomManager.getCapacity();
+    res.status(200).json({
+        ok: true,
+        service: 'berlin-okey',
+        capacity
+    });
+});
+
+app.get('/api/capacity', (req, res) => {
+    res.status(200).json(roomManager.getCapacity());
 });
 
 /** Telegram PP proxy — bot token istemciye sızmaz */
@@ -312,7 +321,7 @@ function attachPlayerToSocket(socket, room, playerName, avatar) {
 io.on('connection', (socket) => {
     Logger.socket(`Yeni bağlantı: ${socket.id}`);
 
-    // Oda oluştur veya kod ile katıl
+    // Oda oluştur, kod ile katıl veya hızlı eşleş
     socket.on('joinGame', async (data) => {
         const {
             playerName,
@@ -323,7 +332,8 @@ io.on('connection', (socket) => {
             photoUrl,
             telegramUserId,
             roomCode: rawCode,
-            createRoom
+            createRoom,
+            quickMatch
         } = data || {};
 
         if (!playerName || !String(playerName).trim()) {
@@ -332,26 +342,69 @@ io.on('connection', (socket) => {
         }
 
         const name = String(playerName).trim().slice(0, 15);
+        const tgId = telegramUserId ? String(telegramUserId).replace(/\D/g, '') : null;
         const avatarName = await resolvePlayerAvatar({
             avatar,
             photoUrl,
-            telegramUserId
+            telegramUserId: tgId
         });
         let room = null;
         const joinCode = roomManager.normalizeCode(rawCode);
+        const modes = {
+            teamMode: !!teamMode,
+            stackingMode: !!stackingMode,
+            penaltyMode: !!penaltyMode
+        };
 
-        if (createRoom === true) {
-            room = roomManager.createRoom({
-                teamMode: !!teamMode,
-                stackingMode: !!stackingMode,
-                penaltyMode: !!penaltyMode
-            });
+        roomManager.cleanupEmptyRooms();
+
+        if (quickMatch === true) {
+            if (!roomManager.canAcceptPlayer()) {
+                socket.emit('error', {
+                    message: `Sunucu dolu! Şu an ${roomManager.MAX_CONCURRENT_PLAYERS} oyuncu limiti dolu. Biraz sonra dene.`
+                });
+                return;
+            }
+            const match = roomManager.findOrCreateQuickMatch(modes);
+            room = match.room;
+            if (!room) {
+                socket.emit('error', { message: 'Şu an uygun masa yok. Biraz sonra tekrar dene.' });
+                return;
+            }
+            if (match.created) {
+                Logger.room(`Hızlı masa: ${room.code} (public)`);
+            }
+        } else if (createRoom === true) {
+            if (!roomManager.canCreateRoom()) {
+                const cap = roomManager.getCapacity();
+                socket.emit('error', {
+                    message: cap.full
+                        ? `Sunucu dolu (${cap.players}/${cap.maxPlayers}). Biraz sonra dene.`
+                        : 'Çok fazla açık oda var. Hızlı Oyna ile katıl veya biraz bekle.'
+                });
+                return;
+            }
+            room = roomManager.createRoom({ ...modes, publicMatch: false });
+            if (!room) {
+                socket.emit('error', { message: 'Oda oluşturulamadı. Kapasite dolu.' });
+                return;
+            }
             Logger.room(`Yeni oda: ${room.code} (Takım=${room.teamMode}, Katlamalı=${room.stackingMode}, Cezalı=${room.penaltyMode})`);
         } else if (joinCode) {
             room = roomManager.getRoom(joinCode);
             if (!room) {
                 socket.emit('error', { message: 'Oda bulunamadı! Kodu kontrol et.' });
                 return;
+            }
+            if (!roomManager.canAcceptPlayer()) {
+                // Yerine geçiş (reconnect) hariç — aşağıda gameStarted + disconnect kontrolü var
+                const hasDisconnectSlot = room.gameStarted && room.players.some(p => p.disconnected);
+                if (!hasDisconnectSlot) {
+                    socket.emit('error', {
+                        message: `Sunucu dolu (${roomManager.MAX_CONCURRENT_PLAYERS} oyuncu). Biraz sonra dene.`
+                    });
+                    return;
+                }
             }
         } else {
             socket.emit('error', { message: 'Oda kodu 6 basamaklı sayı olmalı!' });
@@ -360,9 +413,13 @@ io.on('connection', (socket) => {
 
         const activePlayers = roomManager.getActivePlayers(room);
 
-        const existingPlayer = room.players.find(p => p.name === name && !p.disconnected);
+        const existingPlayer = room.players.find(p => {
+            if (p.disconnected) return false;
+            if (tgId && p.telegramUserId && String(p.telegramUserId) === tgId) return true;
+            return p.name === name;
+        });
         if (existingPlayer) {
-            socket.emit('error', { message: 'Bu isimde bir oyuncu zaten var!' });
+            socket.emit('error', { message: 'Bu oyuncu zaten odada!' });
             return;
         }
 
@@ -376,6 +433,7 @@ io.on('connection', (socket) => {
                 disconnectedPlayer.socketId = socket.id;
                 disconnectedPlayer.name = name;
                 disconnectedPlayer.avatar = avatarName;
+                disconnectedPlayer.telegramUserId = tgId;
                 disconnectedPlayer.disconnected = false;
                 disconnectedPlayer.disconnectTime = null;
 
@@ -418,7 +476,14 @@ io.on('connection', (socket) => {
             return;
         }
 
-        const player = roomManager.addPlayer(room, socket.id, name, avatarName);
+        if (!roomManager.canAcceptPlayer()) {
+            socket.emit('error', {
+                message: `Sunucu dolu (${roomManager.MAX_CONCURRENT_PLAYERS} oyuncu). Biraz sonra dene.`
+            });
+            return;
+        }
+
+        const player = roomManager.addPlayer(room, socket.id, name, avatarName, tgId);
         attachPlayerToSocket(socket, room, name, avatarName);
 
         const updatedPlayers = publicPlayers(room);
@@ -429,7 +494,8 @@ io.on('connection', (socket) => {
             players: updatedPlayers,
             teamMode: room.teamMode,
             stackingMode: room.stackingMode,
-            penaltyMode: room.penaltyMode
+            penaltyMode: room.penaltyMode,
+            capacity: roomManager.getCapacity()
         });
 
         socket.to(room.code).emit('playerJoined', {
@@ -438,7 +504,10 @@ io.on('connection', (socket) => {
             teamMode: room.teamMode
         });
 
-        Logger.room(`${name} → oda ${room.code} (${updatedPlayers.length}/4)`);
+        // Kapasite bilgisini herkese (isteğe bağlı istemciler)
+        io.emit('capacityUpdate', roomManager.getCapacity());
+
+        Logger.room(`${name} → oda ${room.code} (${updatedPlayers.length}/4) | sunucu ${roomManager.countActivePlayers()}/${roomManager.MAX_CONCURRENT_PLAYERS}`);
 
         if (updatedPlayers.length === 4) {
             startGame(room);
@@ -970,12 +1039,18 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
     Logger.title(`🚀 BERLIN OKEY SUNUCUSU: http://0.0.0.0:${PORT}`);
-    Logger.info('Çoklu oda modu aktif (6 haneli kod)');
+    Logger.info(`Çoklu oda · max ${roomManager.MAX_CONCURRENT_PLAYERS} oyuncu · masa başı 4`);
     if (process.env.WEBAPP_URL) {
         Logger.info(`Mini App URL: ${process.env.WEBAPP_URL}`);
     } else {
         Logger.warn('WEBAPP_URL boş — Telegram Mini App butonu çalışmaz');
     }
+
+    setInterval(() => {
+        roomManager.cleanupStaleRooms();
+        roomManager.cleanupEmptyRooms();
+    }, 60 * 1000);
+
     startTelegramBot().catch((err) => {
         Logger.error(`Telegram bot: ${err.message}`);
     });
