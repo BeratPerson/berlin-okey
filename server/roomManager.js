@@ -3,116 +3,91 @@ class RoomManager {
         this.rooms = new Map();
     }
 
+    /** 6 basamaklı sayısal oda kodu (100000–999999) */
     generateRoomCode() {
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-        let code = '';
-        for (let i = 0; i < 6; i++) {
-            code += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
+        let code;
+        do {
+            code = String(Math.floor(100000 + Math.random() * 900000));
+        } while (this.rooms.has(code));
         return code;
     }
 
-    createRoom(teamMode = false) {
-        let code = this.generateRoomCode();
-        while (this.rooms.has(code)) {
-            code = this.generateRoomCode();
-        }
-
+    createRoom({ teamMode = false, stackingMode = false, penaltyMode = false } = {}) {
+        const code = this.generateRoomCode();
         const room = {
-            code: code,
+            code,
             players: [],
-            teamMode: teamMode,
+            teamMode: !!teamMode,
+            stackingMode: !!stackingMode,
+            penaltyMode: !!penaltyMode,
+            minimumOpenScore: 101,
             gameStarted: false,
             game: null,
             scores: teamMode ? { team1: 0, team2: 0 } : {},
             createdAt: Date.now()
         };
-
         this.rooms.set(code, room);
         return room;
     }
 
     getRoom(code) {
-        return this.rooms.get(code);
+        if (!code) return null;
+        return this.rooms.get(String(code).trim()) || null;
     }
 
-    joinRoom(code, socketId, playerName, avatar = 'alibicim.png') {
-        const room = this.rooms.get(code);
-        if (!room) return null;
+    normalizeCode(code) {
+        const digits = String(code || '').replace(/\D/g, '');
+        return digits.length === 6 ? digits : null;
+    }
 
+    getActivePlayers(room) {
+        return room.players.filter(p => !p.disconnected);
+    }
+
+    updatePlayerPositions(room) {
         const positions = ['bottom', 'right', 'top', 'left'];
-        const position = positions[room.players.length];
+        const active = this.getActivePlayers(room);
+        active.forEach((player, index) => {
+            player.position = positions[index];
+            player.index = index;
+            if (room.teamMode) {
+                player.team = index % 2 === 0 ? 1 : 2;
+            } else {
+                player.team = null;
+            }
+        });
+    }
 
-        // Takım belirleme: 0 ve 2 = Takım 1, 1 ve 3 = Takım 2
-        const team = room.teamMode ? (room.players.length % 2 === 0 ? 1 : 2) : null;
-
+    addPlayer(room, socketId, playerName, avatar = 'alibicim.png') {
+        const active = this.getActivePlayers(room);
+        const positions = ['bottom', 'right', 'top', 'left'];
         const player = {
-            socketId: socketId,
+            socketId,
             name: playerName,
-            position: position,
-            index: room.players.length,
-            team: team,
-            avatar: avatar
+            position: positions[active.length],
+            index: active.length,
+            team: room.teamMode ? (active.length % 2 === 0 ? 1 : 2) : null,
+            avatar: avatar || 'alibicim.png',
+            disconnected: false,
+            disconnectTime: null
         };
-
         room.players.push(player);
-
         if (!room.teamMode) {
-            room.scores[playerName] = 0;
+            room.scores[playerName] = room.scores[playerName] || 0;
         }
-
         return player;
-    }
-
-    leaveRoom(code, socketId) {
-        const room = this.rooms.get(code);
-        if (!room) return;
-
-        const player = room.players.find(p => p.socketId === socketId);
-        if (player) {
-            // Oyuncuyu hemen silme - disconnected olarak işaretle
-            player.disconnected = true;
-            player.disconnectTime = Date.now();
-        }
-    }
-
-    // Gerçekten silmek için kullan (timeout sonrası)
-    removePlayer(code, socketId) {
-        const room = this.rooms.get(code);
-        if (!room) return;
-
-        const index = room.players.findIndex(p => p.socketId === socketId);
-        if (index !== -1) {
-            room.players.splice(index, 1);
-        }
-    }
-
-    // Oyuncunun geri bağlanmasını işle
-    reconnectPlayer(code, playerName, newSocketId) {
-        const room = this.rooms.get(code);
-        if (!room) return null;
-
-        const player = room.players.find(p => p.name === playerName);
-        if (player) {
-            player.socketId = newSocketId;
-            player.disconnected = false;
-            player.disconnectTime = null;
-            return player;
-        }
-        return null;
     }
 
     deleteRoom(code) {
         this.rooms.delete(code);
     }
 
-    getRooms() {
-        return Array.from(this.rooms.values()).map(room => ({
-            code: room.code,
-            playerCount: room.players.filter(p => !p.disconnected).length,
-            teamMode: room.teamMode,
-            gameStarted: room.gameStarted
-        }));
+    cleanupEmptyRooms() {
+        for (const [code, room] of this.rooms.entries()) {
+            if (room.players.length === 0) {
+                this.rooms.delete(code);
+            }
+        }
     }
 }
 

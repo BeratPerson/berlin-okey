@@ -1,4 +1,4 @@
-// Berlin Okey - Ana Sayfa (Telegram Mini App uyumlu)
+// Berlin Okey - Ana Sayfa (oda oluştur / 6 haneli koda katıl)
 const socket = io({
     transports: ['websocket', 'polling']
 });
@@ -12,11 +12,11 @@ socket.on('connect_error', (err) => {
     showError('Sunucuyla bağlantı kurulamadı! Lütfen sayfayı yenileyin.');
 });
 
-// DOM Elementleri
-const nameSection = document.getElementById('nameSection');
 const playerNameInput = document.getElementById('playerNameInput');
+const roomCodeInput = document.getElementById('roomCodeInput');
 const errorToast = document.getElementById('errorToast');
-const joinGameBtn = document.getElementById('joinGameBtn');
+const createRoomBtn = document.getElementById('createRoomBtn');
+const joinRoomBtn = document.getElementById('joinRoomBtn');
 const teamModeToggle = document.getElementById('teamModeToggle');
 const stackingModeToggle = document.getElementById('stackingModeToggle');
 const penaltyModeToggle = document.getElementById('penaltyModeToggle');
@@ -27,7 +27,6 @@ let selectedAvatar = 'alibicim.png';
 let selectedIstaka = 'istaka.jpg';
 let telegramUserId = null;
 
-// Avatar seçimi
 const avatarOptions = document.querySelectorAll('.avatar-option');
 avatarOptions.forEach(option => {
     option.addEventListener('click', () => {
@@ -39,7 +38,6 @@ avatarOptions.forEach(option => {
     });
 });
 
-// Istaka renk seçimi
 const istakaOptions = document.querySelectorAll('.istaka-option');
 istakaOptions.forEach(option => {
     option.addEventListener('click', () => {
@@ -51,50 +49,69 @@ istakaOptions.forEach(option => {
     });
 });
 
-// Ses efektleri
+if (roomCodeInput) {
+    roomCodeInput.addEventListener('input', () => {
+        roomCodeInput.value = roomCodeInput.value.replace(/\D/g, '').slice(0, 6);
+    });
+}
+
 function playSound(type) {
     try {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         if (!AudioContext) return;
-
         const audioContext = new AudioContext();
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
-
         oscillator.connect(gainNode);
         gainNode.connect(audioContext.destination);
-
-        switch (type) {
-            case 'click':
-                oscillator.frequency.value = 800;
-                gainNode.gain.value = 0.1;
-                oscillator.type = 'sine';
-                break;
-            case 'join':
-                oscillator.frequency.value = 600;
-                gainNode.gain.value = 0.15;
-                oscillator.type = 'triangle';
-                break;
-            case 'success':
-                oscillator.frequency.value = 1000;
-                gainNode.gain.value = 0.1;
-                oscillator.type = 'sine';
-                break;
-        }
-
+        oscillator.frequency.value = type === 'success' ? 1000 : 800;
+        gainNode.gain.value = 0.1;
+        oscillator.type = 'sine';
         oscillator.start();
         oscillator.stop(audioContext.currentTime + 0.1);
-    } catch (e) {
-        console.warn('Ses çalınamadı:', e);
-    }
+    } catch (e) { /* ignore */ }
 }
 
 function generatePlayerId() {
     return 'Oyuncu' + Math.floor(Math.random() * 9000 + 1000);
 }
 
+function resolvePlayerName() {
+    const inputName = playerNameInput ? playerNameInput.value.trim() : '';
+    if (inputName) {
+        playerName = inputName;
+        localStorage.setItem('okeyPlayerName', playerName);
+    } else {
+        playerName = sessionStorage.getItem('okeyPlayerId') || generatePlayerId();
+    }
+    return playerName;
+}
+
+function saveSelections() {
+    localStorage.setItem('okeyPlayerAvatar', selectedAvatar);
+    localStorage.setItem('okeyPlayerIstaka', selectedIstaka);
+    sessionStorage.setItem('selectedIstaka', selectedIstaka);
+}
+
+function emitJoin({ createRoom, roomCode }) {
+    resolvePlayerName();
+    saveSelections();
+    playSound('click');
+    if (window.BerlinTelegram) BerlinTelegram.haptic('light');
+
+    socket.emit('joinGame', {
+        playerName,
+        createRoom: !!createRoom,
+        roomCode: roomCode || undefined,
+        teamMode: teamModeToggle ? teamModeToggle.checked : false,
+        stackingMode: stackingModeToggle ? stackingModeToggle.checked : false,
+        penaltyMode: penaltyModeToggle ? penaltyModeToggle.checked : false,
+        avatar: selectedAvatar,
+        telegramUserId
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-    // Telegram Mini App
     if (window.BerlinTelegram) {
         BerlinTelegram.init();
         const tgUser = BerlinTelegram.getUser();
@@ -141,9 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedAvatar = savedAvatar;
         avatarOptions.forEach(o => {
             o.classList.remove('selected');
-            if (o.dataset.avatar === savedAvatar) {
-                o.classList.add('selected');
-            }
+            if (o.dataset.avatar === savedAvatar) o.classList.add('selected');
         });
     }
 
@@ -152,41 +167,39 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedIstaka = savedIstaka;
         istakaOptions.forEach(o => {
             o.classList.remove('selected');
-            if (o.dataset.istaka === savedIstaka) {
-                o.classList.add('selected');
-            }
+            if (o.dataset.istaka === savedIstaka) o.classList.add('selected');
         });
+    }
+
+    // Deep link / Telegram start_param: ?room=123456
+    const urlParams = new URLSearchParams(window.location.search);
+    let roomFromUrl = urlParams.get('room');
+    if (!roomFromUrl && window.BerlinTelegram && BerlinTelegram.tg) {
+        const startParam = BerlinTelegram.tg.initDataUnsafe && BerlinTelegram.tg.initDataUnsafe.start_param;
+        if (startParam && /^\d{6}$/.test(startParam)) {
+            roomFromUrl = startParam;
+        }
+    }
+    if (roomFromUrl && /^\d{6}$/.test(roomFromUrl) && roomCodeInput) {
+        roomCodeInput.value = roomFromUrl;
     }
 });
 
-joinGameBtn.addEventListener('click', () => {
-    playSound('click');
-    if (window.BerlinTelegram) BerlinTelegram.haptic('light');
+createRoomBtn.addEventListener('click', () => {
+    emitJoin({ createRoom: true });
+});
 
-    const inputName = playerNameInput ? playerNameInput.value.trim() : '';
-    if (inputName) {
-        playerName = inputName;
-        localStorage.setItem('okeyPlayerName', playerName);
-    } else {
-        playerName = sessionStorage.getItem('okeyPlayerId') || generatePlayerId();
+joinRoomBtn.addEventListener('click', () => {
+    const code = (roomCodeInput.value || '').replace(/\D/g, '');
+    if (code.length !== 6) {
+        showError('Oda kodu 6 basamaklı olmalı!');
+        return;
     }
+    emitJoin({ createRoom: false, roomCode: code });
+});
 
-    localStorage.setItem('okeyPlayerAvatar', selectedAvatar);
-    localStorage.setItem('okeyPlayerIstaka', selectedIstaka);
-    sessionStorage.setItem('selectedIstaka', selectedIstaka);
-
-    const teamMode = teamModeToggle ? teamModeToggle.checked : false;
-    const stackingMode = stackingModeToggle ? stackingModeToggle.checked : false;
-    const penaltyMode = penaltyModeToggle ? penaltyModeToggle.checked : false;
-
-    socket.emit('joinGame', {
-        playerName,
-        teamMode,
-        stackingMode,
-        penaltyMode,
-        avatar: selectedAvatar,
-        telegramUserId
-    });
+roomCodeInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') joinRoomBtn.click();
 });
 
 socket.on('joinedGame', (data) => {
@@ -194,21 +207,23 @@ socket.on('joinedGame', (data) => {
     if (window.BerlinTelegram) BerlinTelegram.haptic('success');
 
     sessionStorage.setItem('lobbyData', JSON.stringify({
-        roomCode: 'MAIN',
+        roomCode: data.roomCode,
         teamMode: data.teamMode,
         players: data.players,
         playerName: playerName,
-        isHost: false
+        isHost: true
     }));
     sessionStorage.setItem('playerName', playerName);
+    sessionStorage.setItem('roomCode', data.roomCode);
 
-    window.location.href = '/game';
+    window.location.href = '/game?room=' + encodeURIComponent(data.roomCode);
 });
 
 socket.on('gameStarted', (data) => {
     sessionStorage.setItem('gameData', JSON.stringify(data));
     sessionStorage.setItem('playerName', playerName);
-    window.location.href = '/game';
+    if (data.roomCode) sessionStorage.setItem('roomCode', data.roomCode);
+    window.location.href = '/game?room=' + encodeURIComponent(data.roomCode || '');
 });
 
 socket.on('error', (data) => {
@@ -220,8 +235,5 @@ function showError(message) {
     const toastMessage = errorToast.querySelector('.toast-message');
     toastMessage.textContent = message;
     errorToast.classList.remove('hidden');
-
-    setTimeout(() => {
-        errorToast.classList.add('hidden');
-    }, 3000);
+    setTimeout(() => errorToast.classList.add('hidden'), 3000);
 }

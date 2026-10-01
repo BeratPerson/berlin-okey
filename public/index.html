@@ -20,22 +20,19 @@
                 <span class="logo-icon">🎴</span>
                 <span class="logo-text">Berlin Okey</span>
             </h1>
-            <p class="tagline">Telegram'da 4 kişilik gerçek zamanlı 101 Okey</p>
+            <p class="tagline">6 haneli kodla arkadaşlarını davet et</p>
             <p id="tgUserBadge" class="tg-user-badge hidden"></p>
         </header>
 
-        <!-- Avatar Seçimi ve Katılma -->
         <section id="nameSection" class="card">
             <h2>🎮 Hoş Geldin!</h2>
-            <p class="welcome-text">İsmini yaz, avatarını seç ve oyuna katıl</p>
+            <p class="welcome-text">İsmini yaz, avatarını seç — oda oluştur veya koda katıl</p>
 
-            <!-- İsim Girişi -->
             <div class="name-input-container">
                 <input type="text" id="playerNameInput" class="name-input" placeholder="İsmini yaz..." maxlength="15"
                     autocomplete="off">
             </div>
 
-            <!-- Avatar Seçimi -->
             <div class="avatar-selection">
                 <p class="section-label">Avatarını Seç:</p>
                 <div class="avatar-grid large">
@@ -54,7 +51,6 @@
                 </div>
             </div>
 
-            <!-- Istaka Renk Seçimi -->
             <div class="istaka-selection">
                 <p class="section-label">Istaka Rengini Seç:</p>
                 <div class="istaka-grid">
@@ -69,17 +65,15 @@
                 </div>
             </div>
 
-            <!-- Takım Modu Toggle -->
             <div class="team-mode-toggle">
                 <label class="toggle-label">
                     <input type="checkbox" id="teamModeToggle">
                     <span class="toggle-slider"></span>
                     <span class="toggle-text">Takım Modu</span>
                 </label>
-                <p class="toggle-info">Karşılıklı oturanlar aynı takımda</p>
+                <p class="toggle-info">Karşılıklı oturanlar aynı takımda (oda kurarken)</p>
             </div>
 
-            <!-- Katlamalı Oyun Toggle -->
             <div class="team-mode-toggle">
                 <label class="toggle-label">
                     <input type="checkbox" id="stackingModeToggle">
@@ -89,7 +83,6 @@
                 <p class="toggle-info">Sonraki oyuncu daha yüksek puanla açmalı</p>
             </div>
 
-            <!-- Cezalı Oyun Toggle -->
             <div class="team-mode-toggle">
                 <label class="toggle-label">
                     <input type="checkbox" id="penaltyModeToggle">
@@ -99,10 +92,18 @@
                 <p class="toggle-info">Ek ceza kuralları aktif</p>
             </div>
 
-            <button id="joinGameBtn" class="btn btn-primary btn-large">🎮 Oyuna Katıl</button>
+            <div class="room-actions">
+                <button id="createRoomBtn" class="btn btn-primary btn-large">➕ Oda Oluştur</button>
+
+                <div class="room-join-row">
+                    <input type="text" id="roomCodeInput" class="name-input room-code-input"
+                        placeholder="6 haneli kod" maxlength="6" inputmode="numeric" pattern="[0-9]*"
+                        autocomplete="off">
+                    <button id="joinRoomBtn" class="btn btn-secondary btn-large">🚪 Koda Katıl</button>
+                </div>
+            </div>
         </section>
 
-        <!-- Hata Mesajı -->
         <div id="errorToast" class="toast hidden">
             <span class="toast-icon">⚠️</span>
             <span class="toast-message"></span>

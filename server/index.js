@@ -6,6 +6,7 @@ const { Server } = require('socket.io');
 const path = require('path');
 const GameLogic = require('./gameLogic');
 const Logger = require('./logger');
+const RoomManager = require('./roomManager');
 const { startTelegramBot } = require('./telegramBot');
 
 const app = express();
@@ -17,335 +18,317 @@ const io = new Server(server, {
     }
 });
 
-// Sabit ana oda - 4 arkadaş için
-const MAIN_ROOM = {
-    code: 'MAIN',
-    players: [],
-    teamMode: false,
-    gameStarted: false,
-    game: null,
-    scores: {}
-};
+const roomManager = new RoomManager();
 
-// Static dosyalar
 app.use(express.static(path.join(__dirname, '../public')));
 app.use('/asset', express.static(path.join(__dirname, '../asset')));
 
-// Health check (Render)
 app.get('/health', (req, res) => {
     res.status(200).json({ ok: true, service: 'berlin-okey' });
 });
 
-// Ana sayfa
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-// Oyun sayfası
 app.get('/game', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/game.html'));
 });
 
-// Yardımcı fonksiyon: Aktif oyuncuları getir
-function getActivePlayers() {
-    return MAIN_ROOM.players.filter(p => !p.disconnected);
+function getRoom(socket) {
+    return roomManager.getRoom(socket.roomCode);
 }
 
-// Yardımcı fonksiyon: Oyuncu pozisyonlarını güncelle
-function updatePlayerPositions() {
-    const positions = ['bottom', 'right', 'top', 'left'];
-    const activePlayers = getActivePlayers();
-    activePlayers.forEach((player, index) => {
-        player.position = positions[index];
-        player.index = index;
-        if (MAIN_ROOM.teamMode) {
-            player.team = index % 2 === 0 ? 1 : 2;
+function publicPlayers(room) {
+    return roomManager.getActivePlayers(room).map(p => ({
+        name: p.name,
+        position: p.position,
+        index: p.index,
+        team: p.team,
+        avatar: p.avatar,
+        socketId: p.socketId
+    }));
+}
+
+function gamePlayersPayload(room) {
+    return room.players.map((p, i) => ({
+        name: p.name,
+        position: p.position,
+        tileCount: room.game ? room.game.getPlayerTiles(i).length : 0,
+        team: p.team,
+        avatar: p.avatar
+    }));
+}
+
+function startGame(room) {
+    room.gameStarted = true;
+    room.game = new GameLogic();
+    room.game.startGame(room.players);
+    room.minimumOpenScore = 101;
+
+    room.players.forEach((player, index) => {
+        const playerSocket = io.sockets.sockets.get(player.socketId);
+        if (playerSocket) {
+            playerSocket.emit('gameStarted', {
+                roomCode: room.code,
+                tiles: room.game.getPlayerTiles(index),
+                indicator: room.game.indicator,
+                okey: room.game.okey,
+                currentPlayer: room.game.currentPlayer,
+                players: gamePlayersPayload(room),
+                playerIndex: index,
+                teamMode: room.teamMode,
+                scores: room.scores,
+                pileCount: room.game.getRemainingTileCount()
+            });
         }
     });
+
+    Logger.game(`🎮 Oda ${room.code} başladı! Başlayan: ${room.players[room.game.currentPlayer].name}`);
 }
 
-// Socket.io bağlantıları
+function attachPlayerToSocket(socket, room, playerName, avatar) {
+    socket.join(room.code);
+    socket.roomCode = room.code;
+    socket.playerName = playerName;
+    socket.avatar = avatar || 'alibicim.png';
+}
+
 io.on('connection', (socket) => {
     Logger.socket(`Yeni bağlantı: ${socket.id}`);
 
-    // Oyuna katıl (tek oda)
+    // Oda oluştur veya kod ile katıl
     socket.on('joinGame', (data) => {
-        const { playerName, teamMode, stackingMode, penaltyMode, avatar } = data;
+        const {
+            playerName,
+            teamMode,
+            stackingMode,
+            penaltyMode,
+            avatar,
+            roomCode: rawCode,
+            createRoom
+        } = data || {};
 
-
-        console.log(`[DEBUG] Join Request Received: Name=${playerName}, Avatar=${avatar}`);
-        Logger.socket(`Katılma isteği: ${playerName}`);
-
-        // Oyun modları ilk katılan tarafından belirlenir
-        if (MAIN_ROOM.players.length === 0) {
-            MAIN_ROOM.teamMode = teamMode;
-            MAIN_ROOM.stackingMode = stackingMode || false;
-            MAIN_ROOM.penaltyMode = penaltyMode || false;
-            MAIN_ROOM.minimumOpenScore = 101; // Katlamalı mod için başlangıç değeri
-            MAIN_ROOM.scores = teamMode ? { team1: 0, team2: 0 } : {};
-            Logger.game(`Oyun modları: Takım=${teamMode}, Katlamalı=${stackingMode}, Cezalı=${penaltyMode}`);
+        if (!playerName || !String(playerName).trim()) {
+            socket.emit('error', { message: 'İsim gerekli!' });
+            return;
         }
 
-        const activePlayers = getActivePlayers();
+        const name = String(playerName).trim().slice(0, 15);
+        const avatarName = avatar || 'alibicim.png';
+        let room = null;
+        const joinCode = roomManager.normalizeCode(rawCode);
 
-        // Aynı isimde aktif oyuncu var mı kontrol et
-        const existingPlayer = MAIN_ROOM.players.find(p => p.name === playerName && !p.disconnected);
+        if (createRoom === true) {
+            room = roomManager.createRoom({
+                teamMode: !!teamMode,
+                stackingMode: !!stackingMode,
+                penaltyMode: !!penaltyMode
+            });
+            Logger.room(`Yeni oda: ${room.code} (Takım=${room.teamMode}, Katlamalı=${room.stackingMode}, Cezalı=${room.penaltyMode})`);
+        } else if (joinCode) {
+            room = roomManager.getRoom(joinCode);
+            if (!room) {
+                socket.emit('error', { message: 'Oda bulunamadı! Kodu kontrol et.' });
+                return;
+            }
+        } else {
+            socket.emit('error', { message: 'Oda kodu 6 basamaklı sayı olmalı!' });
+            return;
+        }
+
+        const activePlayers = roomManager.getActivePlayers(room);
+
+        const existingPlayer = room.players.find(p => p.name === name && !p.disconnected);
         if (existingPlayer) {
             socket.emit('error', { message: 'Bu isimde bir oyuncu zaten var!' });
             return;
         }
 
-        // Oyun başlamışsa, düşmüş oyuncunun yerine geçebilir mi?
-        if (MAIN_ROOM.gameStarted) {
-            const disconnectedPlayer = MAIN_ROOM.players.find(p => p.disconnected);
-
+        // Oyun başlamışsa düşmüş oyuncunun yerine geç
+        if (room.gameStarted) {
+            const disconnectedPlayer = room.players.find(p => p.disconnected);
             if (disconnectedPlayer) {
-                // Düşmüş oyuncunun yerine geç
-                const playerIndex = MAIN_ROOM.players.indexOf(disconnectedPlayer);
+                const playerIndex = room.players.indexOf(disconnectedPlayer);
+                const oldName = disconnectedPlayer.name;
 
-                // Oyuncu bilgilerini güncelle
                 disconnectedPlayer.socketId = socket.id;
-                disconnectedPlayer.name = playerName;
-                disconnectedPlayer.avatar = avatar || 'alibicim.png';
+                disconnectedPlayer.name = name;
+                disconnectedPlayer.avatar = avatarName;
                 disconnectedPlayer.disconnected = false;
                 disconnectedPlayer.disconnectTime = null;
 
-                // Skor güncelle (eski ismi sil, yeni isim ekle)
-                if (!MAIN_ROOM.teamMode) {
-                    const oldScore = MAIN_ROOM.scores[disconnectedPlayer.name] || 0;
-                    delete MAIN_ROOM.scores[disconnectedPlayer.name];
-                    MAIN_ROOM.scores[playerName] = oldScore;
+                if (!room.teamMode) {
+                    const oldScore = room.scores[oldName] || 0;
+                    delete room.scores[oldName];
+                    room.scores[name] = oldScore;
                 }
 
-                socket.join('MAIN');
-                socket.roomCode = 'MAIN';
-                socket.playerName = playerName;
-                socket.avatar = avatar || 'alibicim.png';
+                attachPlayerToSocket(socket, room, name, avatarName);
 
-                // Oyuncuya mevcut oyun durumunu gönder
                 socket.emit('gameStarted', {
-                    tiles: MAIN_ROOM.game.getPlayerTiles(playerIndex),
-                    indicator: MAIN_ROOM.game.indicator,
-                    okey: MAIN_ROOM.game.okey,
-                    currentPlayer: MAIN_ROOM.game.currentPlayer,
-                    players: MAIN_ROOM.players.map((p, i) => ({
-                        name: p.name,
-                        position: p.position,
-                        tileCount: MAIN_ROOM.game.getPlayerTiles(i).length,
-                        team: p.team,
-                        avatar: p.avatar
-                    })),
-                    playerIndex: playerIndex,
-                    teamMode: MAIN_ROOM.teamMode,
-                    scores: MAIN_ROOM.scores
+                    roomCode: room.code,
+                    tiles: room.game.getPlayerTiles(playerIndex),
+                    indicator: room.game.indicator,
+                    okey: room.game.okey,
+                    currentPlayer: room.game.currentPlayer,
+                    players: gamePlayersPayload(room),
+                    playerIndex,
+                    teamMode: room.teamMode,
+                    scores: room.scores
                 });
 
-                // Diğer oyunculara bildir
-                socket.to('MAIN').emit('playerReplaced', {
+                socket.to(room.code).emit('playerReplaced', {
                     oldPlayerIndex: playerIndex,
-                    newPlayerName: playerName,
-                    players: MAIN_ROOM.players.map((p, i) => ({
-                        name: p.name,
-                        position: p.position,
-                        tileCount: MAIN_ROOM.game.getPlayerTiles(i).length,
-                        team: p.team,
-                        avatar: p.avatar
-                    }))
+                    newPlayerName: name,
+                    players: gamePlayersPayload(room)
                 });
 
-                Logger.success(`🔄 ${playerName} düşmüş oyuncunun yerine geçti (pozisyon: ${playerIndex})`);
-                return;
-            } else {
-                // Düşmüş oyuncu yok, katılamaz
-                socket.emit('error', { message: 'Oyun devam ediyor ve boş yer yok!' });
+                Logger.success(`🔄 ${name} oda ${room.code} içinde yerine geçti`);
                 return;
             }
+
+            socket.emit('error', { message: 'Oyun devam ediyor ve boş yer yok!' });
+            return;
         }
 
-        // Oda dolu mu? (oyun başlamadan önce)
         if (activePlayers.length >= 4) {
             socket.emit('error', { message: 'Oda dolu! 4 oyuncu mevcut.' });
             return;
         }
 
-        // Yeni oyuncu ekle
-        const positions = ['bottom', 'right', 'top', 'left'];
-        const position = positions[activePlayers.length];
-        const team = MAIN_ROOM.teamMode ? (activePlayers.length % 2 === 0 ? 1 : 2) : null;
+        const player = roomManager.addPlayer(room, socket.id, name, avatarName);
+        attachPlayerToSocket(socket, room, name, avatarName);
 
-        const player = {
-            socketId: socket.id,
-            name: playerName,
-            position: position,
-            index: activePlayers.length,
-            team: team,
-            avatar: avatar || 'alibicim.png'
-        };
+        const updatedPlayers = publicPlayers(room);
 
-        MAIN_ROOM.players.push(player);
-
-        if (!MAIN_ROOM.teamMode) {
-            MAIN_ROOM.scores[playerName] = 0;
-        }
-
-        socket.join('MAIN');
-        socket.roomCode = 'MAIN';
-        socket.playerName = playerName;
-        socket.avatar = avatar || 'alibicim.png';
-
-        const updatedPlayers = getActivePlayers();
-
-        // Katılan oyuncuya bildir
         socket.emit('joinedGame', {
-            player: player,
+            roomCode: room.code,
+            player,
             players: updatedPlayers,
-            teamMode: MAIN_ROOM.teamMode
+            teamMode: room.teamMode,
+            stackingMode: room.stackingMode,
+            penaltyMode: room.penaltyMode
         });
 
-        // Diğer oyunculara bildir
-        socket.to('MAIN').emit('playerJoined', {
-            player: player,
+        socket.to(room.code).emit('playerJoined', {
+            player,
             players: updatedPlayers,
-            teamMode: MAIN_ROOM.teamMode
+            teamMode: room.teamMode
         });
 
-        Logger.room(`${playerName} oyuna katıldı (${updatedPlayers.length}/4)`);
+        Logger.room(`${name} → oda ${room.code} (${updatedPlayers.length}/4)`);
 
-        // 4 oyuncu olduysa oyunu başlat
         if (updatedPlayers.length === 4) {
-            startGame();
+            startGame(room);
         }
     });
 
-    // Odaya yeniden katıl (sayfa yenilendiğinde)
     socket.on('rejoinRoom', (data) => {
-        const { playerName } = data;
+        const { playerName, roomCode: rawCode } = data || {};
+        const code = roomManager.normalizeCode(rawCode) || String(rawCode || '').trim();
+        const room = roomManager.getRoom(code);
 
-        // Oyuncuyu geri bağla
-        const player = MAIN_ROOM.players.find(p => p.name === playerName);
+        if (!room) {
+            socket.emit('error', { message: 'Oda bulunamadı veya kapandı!' });
+            return;
+        }
+
+        const player = room.players.find(p => p.name === playerName);
 
         if (player) {
             player.socketId = socket.id;
             player.disconnected = false;
             player.disconnectTime = null;
+            attachPlayerToSocket(socket, room, playerName, player.avatar);
 
-            socket.join('MAIN');
-            socket.roomCode = 'MAIN';
-            socket.playerName = playerName;
-
-            // Güncel oyuncu listesini gönder
             socket.emit('playerJoined', {
-                players: getActivePlayers(),
-                teamMode: MAIN_ROOM.teamMode
+                players: publicPlayers(room),
+                teamMode: room.teamMode
             });
 
-            Logger.success(`🔄 ${playerName} oyuna geri bağlandı`);
+            Logger.success(`🔄 ${playerName} oda ${room.code} içine geri bağlandı`);
 
-            // Oyun devam ediyorsa oyun durumunu gönder
-            if (MAIN_ROOM.gameStarted && MAIN_ROOM.game) {
-                const playerIndex = MAIN_ROOM.players.findIndex(p => p.name === playerName);
+            if (room.gameStarted && room.game) {
+                const playerIndex = room.players.findIndex(p => p.name === playerName);
                 if (playerIndex !== -1) {
                     socket.emit('gameStarted', {
-                        tiles: MAIN_ROOM.game.getPlayerTiles(playerIndex),
-                        indicator: MAIN_ROOM.game.indicator,
-                        okey: MAIN_ROOM.game.okey,
-                        currentPlayer: MAIN_ROOM.game.currentPlayer,
-                        players: MAIN_ROOM.players.map((p, i) => ({
-                            name: p.name,
-                            position: p.position,
-                            tileCount: MAIN_ROOM.game.getPlayerTiles(i).length,
-                            team: p.team,
-                            avatar: p.avatar
-                        })),
-                        playerIndex: playerIndex,
-                        teamMode: MAIN_ROOM.teamMode,
-                        scores: MAIN_ROOM.scores
+                        roomCode: room.code,
+                        tiles: room.game.getPlayerTiles(playerIndex),
+                        indicator: room.game.indicator,
+                        okey: room.game.okey,
+                        currentPlayer: room.game.currentPlayer,
+                        players: gamePlayersPayload(room),
+                        playerIndex,
+                        teamMode: room.teamMode,
+                        scores: room.scores
                     });
                 }
             }
-        } else if (!MAIN_ROOM.gameStarted && getActivePlayers().length < 4) {
-            // Yeni oyuncu olarak ekle
-            const positions = ['bottom', 'right', 'top', 'left'];
-            const activePlayers = getActivePlayers();
-            const position = positions[activePlayers.length];
-            const team = MAIN_ROOM.teamMode ? (activePlayers.length % 2 === 0 ? 1 : 2) : null;
+            return;
+        }
 
-            const newPlayer = {
-                socketId: socket.id,
-                name: playerName,
-                position: position,
-                index: activePlayers.length,
-                team: team,
-                avatar: 'alibicim.png'
-            };
-
-            MAIN_ROOM.players.push(newPlayer);
-
-            if (!MAIN_ROOM.teamMode) {
-                MAIN_ROOM.scores[playerName] = 0;
+        // Lobide yeni oyuncu olarak ekle
+        if (!room.gameStarted && roomManager.getActivePlayers(room).length < 4) {
+            const nameTaken = room.players.find(p => p.name === playerName && !p.disconnected);
+            if (nameTaken) {
+                socket.emit('error', { message: 'Bu isimde bir oyuncu zaten var!' });
+                return;
             }
 
-            socket.join('MAIN');
-            socket.roomCode = 'MAIN';
-            socket.playerName = playerName;
+            const newPlayer = roomManager.addPlayer(room, socket.id, playerName, 'alibicim.png');
+            attachPlayerToSocket(socket, room, playerName, 'alibicim.png');
 
-            io.to('MAIN').emit('playerJoined', {
+            io.to(room.code).emit('playerJoined', {
                 player: newPlayer,
-                players: getActivePlayers(),
-                teamMode: MAIN_ROOM.teamMode
+                players: publicPlayers(room),
+                teamMode: room.teamMode
             });
 
-            if (getActivePlayers().length === 4) {
-                startGame();
+            if (roomManager.getActivePlayers(room).length === 4) {
+                startGame(room);
             }
+        } else {
+            socket.emit('error', { message: 'Odaya katılınamıyor!' });
         }
     });
 
-    // Oyunu başlat
-    function startGame() {
-        MAIN_ROOM.gameStarted = true;
-        MAIN_ROOM.game = new GameLogic();
-        MAIN_ROOM.game.startGame(MAIN_ROOM.players);
+    socket.on('leaveRoom', () => {
+        const room = getRoom(socket);
+        if (!room) return;
 
-        // Her oyuncuya kendi taşlarını gönder
-        MAIN_ROOM.players.forEach((player, index) => {
-            const playerSocket = io.sockets.sockets.get(player.socketId);
-            if (playerSocket) {
-                playerSocket.emit('gameStarted', {
-                    tiles: MAIN_ROOM.game.getPlayerTiles(index),
-                    indicator: MAIN_ROOM.game.indicator,
-                    okey: MAIN_ROOM.game.okey,
-                    currentPlayer: MAIN_ROOM.game.currentPlayer,
-                    players: MAIN_ROOM.players.map((p, i) => ({
-                        name: p.name,
-                        position: p.position,
-                        tileCount: MAIN_ROOM.game.getPlayerTiles(i).length,
-                        team: p.team,
-                        avatar: p.avatar
-                    })),
-                    playerIndex: index,
-                    teamMode: MAIN_ROOM.teamMode,
-                    scores: MAIN_ROOM.scores,
-                    pileCount: MAIN_ROOM.game.getRemainingTileCount()
-                });
-            }
+        const player = room.players.find(p => p.socketId === socket.id);
+        if (!player) return;
+
+        const index = room.players.indexOf(player);
+        if (index !== -1) room.players.splice(index, 1);
+        roomManager.updatePlayerPositions(room);
+        socket.leave(room.code);
+
+        io.to(room.code).emit('playerLeft', {
+            playerName: player.name,
+            players: publicPlayers(room)
         });
 
-        Logger.game(`🎮 Oyun başladı! Başlayan: ${MAIN_ROOM.players[MAIN_ROOM.game.currentPlayer].name}`);
-    }
+        if (room.players.length === 0) {
+            roomManager.deleteRoom(room.code);
+            Logger.room(`🗑️ Oda ${room.code} silindi`);
+        }
 
-    // Taş çek
+        socket.roomCode = null;
+    });
+
     socket.on('drawTile', (data) => {
-        if (!MAIN_ROOM.game) return;
+        const room = getRoom(socket);
+        if (!room || !room.game) return;
 
-        const playerIndex = MAIN_ROOM.players.findIndex(p => p.socketId === socket.id);
-        if (playerIndex === -1 || playerIndex !== MAIN_ROOM.game.currentPlayer) {
-            console.log(`[DEBUG] Turn Error (Draw): Requesting=${playerIndex} (ID:${socket.id}), Current=${MAIN_ROOM.game.currentPlayer}`);
+        const playerIndex = room.players.findIndex(p => p.socketId === socket.id);
+        if (playerIndex === -1 || playerIndex !== room.game.currentPlayer) {
             socket.emit('error', { message: 'Sıra sizde değil!' });
             return;
         }
 
-        if (MAIN_ROOM.game.hasDrawn) {
+        if (room.game.hasDrawn) {
             socket.emit('error', { message: 'Zaten taş çektiniz!' });
             return;
         }
@@ -354,17 +337,14 @@ io.on('connection', (socket) => {
         let mustOpenHand = false;
 
         if (data.fromDiscard) {
-            tile = MAIN_ROOM.game.drawFromDiscard(playerIndex);
-
+            tile = room.game.drawFromDiscard(playerIndex);
             if (tile && tile.error) {
                 socket.emit('error', { message: tile.error });
                 return;
             }
-
-            const state = MAIN_ROOM.game.playerStates[playerIndex];
-            mustOpenHand = state.mustOpenThisTurn;
+            mustOpenHand = room.game.playerStates[playerIndex].mustOpenThisTurn;
         } else {
-            tile = MAIN_ROOM.game.drawFromPile(playerIndex);
+            tile = room.game.drawFromPile(playerIndex);
         }
 
         if (!tile) {
@@ -372,65 +352,58 @@ io.on('connection', (socket) => {
             return;
         }
 
-        MAIN_ROOM.game.hasDrawn = true;
-        MAIN_ROOM.game.playerTiles[playerIndex].push(tile);
+        room.game.hasDrawn = true;
+        room.game.playerTiles[playerIndex].push(tile);
 
         socket.emit('tileDrawn', {
-            tile: tile,
+            tile,
             fromDiscard: data.fromDiscard,
-            mustOpenHand: mustOpenHand
+            mustOpenHand
         });
 
-        socket.to('MAIN').emit('playerDrewTile', {
-            playerIndex: playerIndex,
+        socket.to(room.code).emit('playerDrewTile', {
+            playerIndex,
             fromDiscard: data.fromDiscard,
-            tileCount: MAIN_ROOM.game.playerTiles[playerIndex].length
+            tileCount: room.game.playerTiles[playerIndex].length
         });
 
-        // Kalan taş sayısını güncelle (yığından çekildiyse)
         if (!data.fromDiscard) {
-            io.to('MAIN').emit('pileUpdate', {
-                count: MAIN_ROOM.game.getRemainingTileCount()
+            io.to(room.code).emit('pileUpdate', {
+                count: room.game.getRemainingTileCount()
             });
         }
     });
 
-    // Taş at
     socket.on('discardTile', (data) => {
-        if (!MAIN_ROOM.game) return;
+        const room = getRoom(socket);
+        if (!room || !room.game) return;
 
-        const playerIndex = MAIN_ROOM.players.findIndex(p => p.socketId === socket.id);
-        if (playerIndex === -1 || playerIndex !== MAIN_ROOM.game.currentPlayer) {
-            console.log(`[DEBUG] Turn Error (Draw): Requesting=${playerIndex} (ID:${socket.id}), Current=${MAIN_ROOM.game.currentPlayer}`);
+        const playerIndex = room.players.findIndex(p => p.socketId === socket.id);
+        if (playerIndex === -1 || playerIndex !== room.game.currentPlayer) {
             socket.emit('error', { message: 'Sıra sizde değil!' });
             return;
         }
 
-        if (!MAIN_ROOM.game.hasDrawn) {
+        if (!room.game.hasDrawn) {
             socket.emit('error', { message: 'Önce taş çekmelisiniz!' });
             return;
         }
 
         const tileIndex = data.tileIndex;
-        const tileToDiscard = MAIN_ROOM.game.playerTiles[playerIndex][tileIndex];
-
+        const tileToDiscard = room.game.playerTiles[playerIndex][tileIndex];
         if (!tileToDiscard) {
             socket.emit('error', { message: 'Geçersiz taş!' });
             return;
         }
 
-        // İŞLER TAŞ CEZASI: Atılan taş bir açık gruba eklenebilir mi?
         let isPlayableTile = false;
         for (let i = 0; i < 4; i++) {
-            const state = MAIN_ROOM.game.playerStates[i];
+            const state = room.game.playerStates[i];
             if (!state.hasOpened || !state.openedGroups) continue;
-
             for (const group of state.openedGroups) {
-                // Taşı grubun başına veya sonuna eklemeyi dene
                 const withLeft = [tileToDiscard, ...group];
                 const withRight = [...group, tileToDiscard];
-
-                if (MAIN_ROOM.game.isValidGroup(withLeft) || MAIN_ROOM.game.isValidGroup(withRight)) {
+                if (room.game.isValidGroup(withLeft) || room.game.isValidGroup(withRight)) {
                     isPlayableTile = true;
                     break;
                 }
@@ -438,102 +411,89 @@ io.on('connection', (socket) => {
             if (isPlayableTile) break;
         }
 
-        // Ceza uygula
-        if (isPlayableTile && MAIN_ROOM.penaltyMode) {
-            // Cezalı modda işler taş atma cezası
-            if (MAIN_ROOM.teamMode) {
+        if (isPlayableTile && room.penaltyMode) {
+            if (room.teamMode) {
                 const team = playerIndex % 2 === 0 ? 'team1' : 'team2';
-                MAIN_ROOM.scores[team] = (MAIN_ROOM.scores[team] || 0) + 101;
+                room.scores[team] = (room.scores[team] || 0) + 101;
             } else {
-                const playerName = MAIN_ROOM.players[playerIndex].name;
-                MAIN_ROOM.scores[playerName] = (MAIN_ROOM.scores[playerName] || 0) + 101;
+                const pname = room.players[playerIndex].name;
+                room.scores[pname] = (room.scores[pname] || 0) + 101;
             }
 
-            io.to('MAIN').emit('penaltyApplied', {
-                playerIndex: playerIndex,
+            io.to(room.code).emit('penaltyApplied', {
+                playerIndex,
                 playerName: socket.playerName,
                 reason: 'İşler taş attı!',
                 penalty: 101,
-                scores: MAIN_ROOM.scores
+                scores: room.scores
             });
 
-            Logger.warning(`⚠️ ${socket.playerName} işler taş attı! +101 ceza`);
+            Logger.warn(`⚠️ ${socket.playerName} işler taş attı! +101 ceza`);
         }
 
-        const discardedTile = MAIN_ROOM.game.discardTile(playerIndex, tileIndex);
-
+        const discardedTile = room.game.discardTile(playerIndex, tileIndex);
         if (!discardedTile) {
             socket.emit('error', { message: 'Geçersiz taş!' });
             return;
         }
 
-        MAIN_ROOM.game.currentPlayer = (MAIN_ROOM.game.currentPlayer + 1) % 4;
-        MAIN_ROOM.game.hasDrawn = false;
+        room.game.currentPlayer = (room.game.currentPlayer + 1) % 4;
+        room.game.hasDrawn = false;
+        const nextPlayer = room.game.currentPlayer;
+        const leftDiscard = room.game.getLeftDiscard(nextPlayer);
 
-        // Bir sonraki oyuncunun solundaki taş (yeni atılan)
-        const nextPlayer = MAIN_ROOM.game.currentPlayer;
-        const leftDiscard = MAIN_ROOM.game.getLeftDiscard(nextPlayer);
-
-        io.to('MAIN').emit('tileDiscarded', {
-            playerIndex: playerIndex,       // Kim attı
-            tile: discardedTile,            // Hangi taş
-            nextPlayer: nextPlayer,         // Sıra kimde
-            tileCount: MAIN_ROOM.game.playerTiles[playerIndex].length,
-            leftDiscard: leftDiscard,       // Sonraki oyuncunun solundaki taş
-            isPlayableTile: isPlayableTile  // İşler taş mıydı?
+        io.to(room.code).emit('tileDiscarded', {
+            playerIndex,
+            tile: discardedTile,
+            nextPlayer,
+            tileCount: room.game.playerTiles[playerIndex].length,
+            leftDiscard,
+            isPlayableTile
         });
-        Logger.game(`Taş atıldı: ${MAIN_ROOM.players[playerIndex].name} -> ${discardedTile ? discardedTile.id : '?'}${isPlayableTile ? ' (İŞLER!)' : ''}`);
     });
 
-    // Taşları sırala
     socket.on('sortTiles', (data) => {
-        if (!MAIN_ROOM.game) return;
-
-        const playerIndex = MAIN_ROOM.players.findIndex(p => p.socketId === socket.id);
+        const room = getRoom(socket);
+        if (!room || !room.game) return;
+        const playerIndex = room.players.findIndex(p => p.socketId === socket.id);
         if (playerIndex === -1) return;
-
-        MAIN_ROOM.game.playerTiles[playerIndex] = data.tiles;
+        room.game.playerTiles[playerIndex] = data.tiles;
         socket.emit('tilesSorted', { tiles: data.tiles });
     });
 
-    // El aç
     socket.on('openHand', (data) => {
-        if (!MAIN_ROOM.game) return;
+        const room = getRoom(socket);
+        if (!room || !room.game) return;
 
-        const playerIndex = MAIN_ROOM.players.findIndex(p => p.socketId === socket.id);
+        const playerIndex = room.players.findIndex(p => p.socketId === socket.id);
         if (playerIndex === -1) return;
 
-        if (MAIN_ROOM.game.playerStates[playerIndex].hasOpened) {
+        if (room.game.playerStates[playerIndex].hasOpened) {
             socket.emit('error', { message: 'Zaten el açtınız!' });
             return;
         }
 
         const groups = data.groups;
         const score = data.score;
-
-        // Minimum puan kontrolü
-        const minScore = MAIN_ROOM.minimumOpenScore || 101;
+        const minScore = room.minimumOpenScore || 101;
 
         if (score < minScore) {
-            if (MAIN_ROOM.stackingMode) {
-                socket.emit('error', { message: `Katlamalı mod: En az ${minScore} puan gerekli!` });
-            } else {
-                socket.emit('error', { message: 'En az 101 puan gerekli!' });
-            }
+            socket.emit('error', {
+                message: room.stackingMode
+                    ? `Katlamalı mod: En az ${minScore} puan gerekli!`
+                    : 'En az 101 puan gerekli!'
+            });
             return;
         }
 
-        // Yerden çekilen taş kullanılmalı kontrolü
-        const playerState = MAIN_ROOM.game.playerStates[playerIndex];
+        const playerState = room.game.playerStates[playerIndex];
         const drawnFromDiscard = playerState.drawnFromDiscardTile;
 
         if (drawnFromDiscard) {
-            // Bu taş açılan gruplardan birinde kullanılmalı
-            const openedGroups = groups.map(groupIndices => {
-                return groupIndices.map(idx => MAIN_ROOM.game.playerTiles[playerIndex][idx]);
-            });
+            const openedGroups = groups.map(groupIndices =>
+                groupIndices.map(idx => room.game.playerTiles[playerIndex][idx])
+            );
 
-            // Yerden çekilen taş gruplardan birinde var mı?
             let tileUsed = false;
             for (const group of openedGroups) {
                 for (const tile of group) {
@@ -546,311 +506,261 @@ io.on('connection', (socket) => {
             }
 
             if (!tileUsed) {
-                // Taşı geri ver (soldaki oyuncunun atık alanına)
                 const previousPlayer = (playerIndex + 3) % 4;
-                MAIN_ROOM.game.discardPiles[previousPlayer].push(drawnFromDiscard);
-
-                // Taşı oyuncunun elinden çıkar
-                const tileIdx = MAIN_ROOM.game.playerTiles[playerIndex].findIndex(t => t.id === drawnFromDiscard.id);
+                room.game.discardPiles[previousPlayer].push(drawnFromDiscard);
+                const tileIdx = room.game.playerTiles[playerIndex].findIndex(t => t.id === drawnFromDiscard.id);
                 if (tileIdx !== -1) {
-                    MAIN_ROOM.game.playerTiles[playerIndex].splice(tileIdx, 1);
+                    room.game.playerTiles[playerIndex].splice(tileIdx, 1);
                 }
-
-                // Durumu temizle
                 playerState.drawnFromDiscardTile = null;
-
                 socket.emit('error', { message: 'Yerden çektiğiniz taşı kullanmalısınız! Taş geri bırakıldı.' });
-
-                // Güncel eli gönder
-                socket.emit('tilesUpdated', { tiles: MAIN_ROOM.game.playerTiles[playerIndex] });
-
-                Logger.warning(`⚠️ ${socket.playerName} yerden çektiği taşı kullanmadan açmaya çalıştı!`);
+                socket.emit('tilesUpdated', { tiles: room.game.playerTiles[playerIndex] });
                 return;
             }
-
-            // Taş kullanıldı, temizle
             playerState.drawnFromDiscardTile = null;
         }
 
-        const openedGroups = groups.map(groupIndices => {
-            return groupIndices.map(idx => MAIN_ROOM.game.playerTiles[playerIndex][idx]);
-        });
+        const openedGroups = groups.map(groupIndices =>
+            groupIndices.map(idx => room.game.playerTiles[playerIndex][idx])
+        );
 
         const allIndices = groups.flat().sort((a, b) => b - a);
         allIndices.forEach(idx => {
-            MAIN_ROOM.game.playerTiles[playerIndex].splice(idx, 1);
+            room.game.playerTiles[playerIndex].splice(idx, 1);
         });
 
-        MAIN_ROOM.game.playerStates[playerIndex].hasOpened = true;
-        MAIN_ROOM.game.playerStates[playerIndex].openType = 'normal';
-        MAIN_ROOM.game.playerStates[playerIndex].openScore = score;
-        MAIN_ROOM.game.playerStates[playerIndex].openedGroups = openedGroups;
+        room.game.playerStates[playerIndex].hasOpened = true;
+        room.game.playerStates[playerIndex].openType = 'normal';
+        room.game.playerStates[playerIndex].openScore = score;
+        room.game.playerStates[playerIndex].openedGroups = openedGroups;
 
-        // Katlamalı modda minimum puanı güncelle
-        if (MAIN_ROOM.stackingMode) {
-            MAIN_ROOM.minimumOpenScore = score + 1;
-            Logger.game(`📈 Katlamalı mod: Yeni minimum açma puanı: ${MAIN_ROOM.minimumOpenScore}`);
+        if (room.stackingMode) {
+            room.minimumOpenScore = score + 1;
         }
 
-        io.to('MAIN').emit('handOpened', {
-            playerIndex: playerIndex,
+        io.to(room.code).emit('handOpened', {
+            playerIndex,
             playerName: socket.playerName,
-            groups: groups,
-            openedGroups: openedGroups,
-            score: score,
-            tileCount: MAIN_ROOM.game.playerTiles[playerIndex].length,
-            remainingTiles: MAIN_ROOM.game.playerTiles[playerIndex],
-            minimumOpenScore: MAIN_ROOM.minimumOpenScore // Client'a bildir
+            groups,
+            openedGroups,
+            score,
+            tileCount: room.game.playerTiles[playerIndex].length,
+            remainingTiles: room.game.playerTiles[playerIndex],
+            minimumOpenScore: room.minimumOpenScore
         });
-
-        Logger.game(`📖 ${socket.playerName} el açtı: ${score} puan`);
     });
 
-    // Çift ile el aç
     socket.on('openWithPairs', () => {
-        if (!MAIN_ROOM.game) return;
+        const room = getRoom(socket);
+        if (!room || !room.game) return;
 
-        const playerIndex = MAIN_ROOM.players.findIndex(p => p.socketId === socket.id);
+        const playerIndex = room.players.findIndex(p => p.socketId === socket.id);
         if (playerIndex === -1) return;
 
-        const result = MAIN_ROOM.game.openWithPairs(playerIndex);
-
+        const result = room.game.openWithPairs(playerIndex);
         if (!result.valid) {
             socket.emit('error', { message: result.message });
             return;
         }
 
-        io.to('MAIN').emit('pairsOpened', {
-            playerIndex: playerIndex,
+        io.to(room.code).emit('pairsOpened', {
+            playerIndex,
             playerName: socket.playerName,
             pairsCount: result.count,
-            tileCount: MAIN_ROOM.game.playerTiles[playerIndex].length
+            tileCount: room.game.playerTiles[playerIndex].length
         });
-
-        Logger.game(`🃏 ${socket.playerName} çift açtı: ${result.count} çift`);
     });
 
-    // Masadaki sete taş işle (açılmış gruplara taş ekleme)
     socket.on('addToGroup', (data) => {
-        if (!MAIN_ROOM.game) return;
+        const room = getRoom(socket);
+        if (!room || !room.game) return;
 
-        const playerIndex = MAIN_ROOM.players.findIndex(p => p.socketId === socket.id);
+        const playerIndex = room.players.findIndex(p => p.socketId === socket.id);
         if (playerIndex === -1) {
             socket.emit('error', { message: 'Oyuncu bulunamadı!' });
             return;
         }
-
-        if (playerIndex !== MAIN_ROOM.game.currentPlayer) {
+        if (playerIndex !== room.game.currentPlayer) {
             socket.emit('error', { message: 'Sıra sizde değil!' });
             return;
         }
-
-        // El açmış olmalı
-        if (!MAIN_ROOM.game.playerStates[playerIndex].hasOpened) {
+        if (!room.game.playerStates[playerIndex].hasOpened) {
             socket.emit('error', { message: 'Önce el açmalısınız!' });
             return;
         }
 
         const { tileIndex, targetPlayerIndex, targetGroupIndex, position } = data;
-
-        // Hedef oyuncunun açık grupları
-        const targetState = MAIN_ROOM.game.playerStates[targetPlayerIndex];
+        const targetState = room.game.playerStates[targetPlayerIndex];
         if (!targetState || !targetState.openedGroups || !targetState.openedGroups[targetGroupIndex]) {
             socket.emit('error', { message: 'Hedef grup bulunamadı!' });
             return;
         }
 
-        // Taşı al
-        const tile = MAIN_ROOM.game.playerTiles[playerIndex][tileIndex];
+        const tile = room.game.playerTiles[playerIndex][tileIndex];
         if (!tile) {
             socket.emit('error', { message: 'Taş bulunamadı!' });
             return;
         }
 
-        // Taşı gruba ekleyip kontrol et
         const group = [...targetState.openedGroups[targetGroupIndex]];
-        if (position === 'left') {
-            group.unshift(tile);
-        } else {
-            group.push(tile);
-        }
+        if (position === 'left') group.unshift(tile);
+        else group.push(tile);
 
-        // Grup hala geçerli mi kontrol et
-        if (!MAIN_ROOM.game.isValidGroup(group)) {
+        if (!room.game.isValidGroup(group)) {
             socket.emit('error', { message: 'Bu taş bu gruba eklenemez!' });
             return;
         }
 
-        // Taşı elden çıkar
-        MAIN_ROOM.game.playerTiles[playerIndex].splice(tileIndex, 1);
-
-        // Grubu güncelle
+        room.game.playerTiles[playerIndex].splice(tileIndex, 1);
         targetState.openedGroups[targetGroupIndex] = group;
 
-        // Tüm oyunculara bildir
-        io.to('MAIN').emit('groupUpdated', {
-            playerIndex: playerIndex,
-            targetPlayerIndex: targetPlayerIndex,
-            targetGroupIndex: targetGroupIndex,
-            group: group,
-            playerTileCount: MAIN_ROOM.game.playerTiles[playerIndex].length,
+        io.to(room.code).emit('groupUpdated', {
+            playerIndex,
+            targetPlayerIndex,
+            targetGroupIndex,
+            group,
+            playerTileCount: room.game.playerTiles[playerIndex].length,
             addedTile: tile,
-            position: position
+            position
         });
 
-        // İşleyen oyuncuya güncel taşlarını gönder
-        const processingSocket = [...io.sockets.sockets.values()].find(s =>
-            MAIN_ROOM.players.find(p => p.socketId === s.id && p.name === socket.playerName)
-        );
-        if (processingSocket) {
-            processingSocket.emit('tilesUpdated', {
-                tiles: MAIN_ROOM.game.playerTiles[playerIndex]
-            });
-        }
-
-        Logger.game(`📝 ${socket.playerName} taş işledi: ${tile.color} ${tile.number} -> ${MAIN_ROOM.players[targetPlayerIndex].name}'nin grubuna`);
+        socket.emit('tilesUpdated', {
+            tiles: room.game.playerTiles[playerIndex]
+        });
     });
 
-    // Oyunu bitir
-    socket.on('finishGame', (data) => {
-        if (!MAIN_ROOM.game) return;
+    socket.on('finishGame', () => {
+        const room = getRoom(socket);
+        if (!room || !room.game) return;
 
-        const playerIndex = MAIN_ROOM.players.findIndex(p => p.socketId === socket.id);
-        if (playerIndex === -1 || playerIndex !== MAIN_ROOM.game.currentPlayer) {
-            console.log(`[DEBUG] Turn Error (Discard): Requesting=${playerIndex}, Current=${MAIN_ROOM.game.currentPlayer}`);
+        const playerIndex = room.players.findIndex(p => p.socketId === socket.id);
+        if (playerIndex === -1 || playerIndex !== room.game.currentPlayer) {
             socket.emit('error', { message: 'Sıra sizde değil!' });
             return;
         }
 
-        const result = MAIN_ROOM.game.checkFinish(playerIndex);
-
+        const result = room.game.checkFinish(playerIndex);
         if (!result.valid) {
             socket.emit('error', { message: result.message });
             return;
         }
 
-        const points = MAIN_ROOM.game.calculatePoints(playerIndex, result);
+        const points = room.game.calculatePoints(playerIndex, result);
 
-        if (MAIN_ROOM.teamMode) {
-            const team1Points = points[0] + points[2];
-            const team2Points = points[1] + points[3];
-            MAIN_ROOM.scores.team1 += team1Points;
-            MAIN_ROOM.scores.team2 += team2Points;
+        if (room.teamMode) {
+            room.scores.team1 += points[0] + points[2];
+            room.scores.team2 += points[1] + points[3];
         } else {
-            MAIN_ROOM.players.forEach((p, i) => {
-                MAIN_ROOM.scores[p.name] = (MAIN_ROOM.scores[p.name] || 0) + points[i];
+            room.players.forEach((p, i) => {
+                room.scores[p.name] = (room.scores[p.name] || 0) + points[i];
             });
         }
 
-        io.to('MAIN').emit('gameFinished', {
+        io.to(room.code).emit('gameFinished', {
             winner: playerIndex,
-            winnerName: MAIN_ROOM.players[playerIndex].name,
-            points: points,
-            scores: MAIN_ROOM.scores,
-            tiles: MAIN_ROOM.game.playerTiles,
-            teamMode: MAIN_ROOM.teamMode
+            winnerName: room.players[playerIndex].name,
+            points,
+            scores: room.scores,
+            tiles: room.game.playerTiles,
+            teamMode: room.teamMode
         });
-
-        Logger.title(`🏆 OYUN BİTTİ: ${MAIN_ROOM.players[playerIndex].name} KAZANDI! (${result.type})`);
     });
 
-    // Yeni el başlat
     socket.on('newRound', () => {
-        if (MAIN_ROOM.players.length === 4) {
-            MAIN_ROOM.gameStarted = false;
-            MAIN_ROOM.game = null;
-            startGame();
+        const room = getRoom(socket);
+        if (!room) return;
+        if (room.players.length === 4) {
+            room.gameStarted = false;
+            room.game = null;
+            startGame(room);
         }
     });
 
-    // Domates fırlatma
     socket.on('throwTomato', (data) => {
-        const throwerIndex = MAIN_ROOM.players.findIndex(p => p.socketId === socket.id);
+        const room = getRoom(socket);
+        if (!room) return;
+
+        const throwerIndex = room.players.findIndex(p => p.socketId === socket.id);
         if (throwerIndex === -1) return;
 
         const targetPlayerIndex = data.targetPlayerIndex;
-        const targetPlayer = MAIN_ROOM.players[targetPlayerIndex];
-
+        const targetPlayer = room.players[targetPlayerIndex];
         if (!targetPlayer) return;
 
         const targetSocket = io.sockets.sockets.get(targetPlayer.socketId);
         if (targetSocket) {
             targetSocket.emit('tomatoHit', {
-                throwerIndex: throwerIndex,
+                throwerIndex,
                 throwerName: data.throwerName
             });
         }
 
-        MAIN_ROOM.players.forEach((player, index) => {
+        room.players.forEach((player, index) => {
             if (index !== throwerIndex && index !== targetPlayerIndex) {
                 const playerSocket = io.sockets.sockets.get(player.socketId);
                 if (playerSocket) {
                     playerSocket.emit('tomatoThrown', {
-                        throwerIndex: throwerIndex,
-                        targetPlayerIndex: targetPlayerIndex,
+                        throwerIndex,
+                        targetPlayerIndex,
                         throwerName: data.throwerName
                     });
                 }
             }
         });
-
-        Logger.game(`🍅 ${data.throwerName} -> ${targetPlayer.name}`);
     });
 
     socket.on('disconnect', () => {
-        // Socket'i room'dan çıkar
-        socket.leave('MAIN');
-
-        const player = MAIN_ROOM.players.find(p => p.socketId === socket.id);
-        if (player) {
-            player.disconnected = true;
-            player.disconnectTime = Date.now();
-
-            Logger.socket(`Oyuncu ayrıldı: ${player.name} (30sn içinde geri bağlanmazsa silinecek)`);
-
-            // 30 saniye sonra oyuncuyu sil
-            setTimeout(() => {
-                // Oyuncu hala disconnect durumunda mı?
-                const currentPlayer = MAIN_ROOM.players.find(p => p.name === player.name);
-                if (currentPlayer && currentPlayer.disconnected) {
-                    const index = MAIN_ROOM.players.indexOf(currentPlayer);
-                    if (index !== -1) {
-                        MAIN_ROOM.players.splice(index, 1);
-                        updatePlayerPositions();
-
-                        io.to('MAIN').emit('playerLeft', {
-                            playerName: player.name,
-                            players: getActivePlayers()
-                        });
-
-                        Logger.room(`Oyuncu silindi: ${player.name}`);
-                    }
-
-                    // Tüm oyuncular ayrıldı mı kontrol et
-                    if (MAIN_ROOM.players.length === 0) {
-                        // Odayı tamamen sıfırla
-                        MAIN_ROOM.gameStarted = false;
-                        MAIN_ROOM.game = null;
-                        MAIN_ROOM.scores = {};
-                        MAIN_ROOM.teamMode = false;
-                        Logger.room('🗑️ Oda tamamen sıfırlandı - tüm oyuncular ayrıldı');
-                    }
-                }
-            }, 30000);
-        } else {
+        const room = getRoom(socket);
+        if (!room) {
             Logger.socket(`Bilinmeyen socket ayrıldı: ${socket.id}`);
+            return;
         }
+
+        socket.leave(room.code);
+        const player = room.players.find(p => p.socketId === socket.id);
+        if (!player) return;
+
+        player.disconnected = true;
+        player.disconnectTime = Date.now();
+        const roomCode = room.code;
+        const playerName = player.name;
+
+        Logger.socket(`Oyuncu ayrıldı: ${playerName} (oda ${roomCode})`);
+
+        setTimeout(() => {
+            const currentRoom = roomManager.getRoom(roomCode);
+            if (!currentRoom) return;
+
+            const currentPlayer = currentRoom.players.find(p => p.name === playerName);
+            if (currentPlayer && currentPlayer.disconnected) {
+                const index = currentRoom.players.indexOf(currentPlayer);
+                if (index !== -1) {
+                    currentRoom.players.splice(index, 1);
+                    roomManager.updatePlayerPositions(currentRoom);
+
+                    io.to(roomCode).emit('playerLeft', {
+                        playerName,
+                        players: publicPlayers(currentRoom)
+                    });
+                }
+
+                if (currentRoom.players.length === 0) {
+                    roomManager.deleteRoom(roomCode);
+                    Logger.room(`🗑️ Oda ${roomCode} silindi`);
+                }
+            }
+        }, 30000);
     });
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
     Logger.title(`🚀 BERLIN OKEY SUNUCUSU: http://0.0.0.0:${PORT}`);
-    Logger.info('4 arkadaş için tek oda modu aktif');
+    Logger.info('Çoklu oda modu aktif (6 haneli kod)');
     if (process.env.WEBAPP_URL) {
         Logger.info(`Mini App URL: ${process.env.WEBAPP_URL}`);
     } else {
-        Logger.warn('WEBAPP_URL boş — Telegram Mini App butonu çalışmaz (HTTPS URL gerekli)');
+        Logger.warn('WEBAPP_URL boş — Telegram Mini App butonu çalışmaz');
     }
     startTelegramBot().catch((err) => {
         Logger.error(`Telegram bot: ${err.message}`);

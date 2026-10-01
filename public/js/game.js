@@ -268,27 +268,62 @@ function updateLobbyPlayers(players, teamMode) {
 
 // Lobiye bağlan
 function connectToLobby(data) {
-    // Odaya yeniden katıl (sayfa yenilenmiş olabilir)
     socket.emit('rejoinRoom', {
         roomCode: data.roomCode,
         playerName: data.playerName
     });
 
-    // Lobi butonları
     const lobbyCopyBtn = document.getElementById('lobbyCopyBtn');
+    const lobbyShareBtn = document.getElementById('lobbyShareBtn');
     const lobbyLeaveBtn = document.getElementById('lobbyLeaveBtn');
 
-    lobbyCopyBtn.onclick = () => {
-        navigator.clipboard.writeText(data.roomCode);
-        lobbyCopyBtn.innerHTML = '✅ Kopyalandı!';
+    const inviteText = `Berlin Okey — oda kodu: ${data.roomCode}\nKatılmak için kodu gir veya linki aç:\n${window.location.origin}/?room=${data.roomCode}`;
+
+    lobbyCopyBtn.onclick = async () => {
+        try {
+            await navigator.clipboard.writeText(data.roomCode);
+            lobbyCopyBtn.innerHTML = '✅ Kopyalandı!';
+        } catch (_) {
+            lobbyCopyBtn.innerHTML = data.roomCode;
+        }
         setTimeout(() => {
             lobbyCopyBtn.innerHTML = '📋 Kopyala';
         }, 2000);
     };
 
+    if (lobbyShareBtn) {
+        lobbyShareBtn.onclick = async () => {
+            if (window.BerlinTelegram && BerlinTelegram.tg && BerlinTelegram.tg.openTelegramLink) {
+                const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(window.location.origin + '/?room=' + data.roomCode)}&text=${encodeURIComponent('Berlin Okey oda kodu: ' + data.roomCode)}`;
+                BerlinTelegram.tg.openTelegramLink(shareUrl);
+                return;
+            }
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title: 'Berlin Okey',
+                        text: inviteText
+                    });
+                    return;
+                } catch (_) { /* iptal */ }
+            }
+            try {
+                await navigator.clipboard.writeText(inviteText);
+                lobbyShareBtn.innerHTML = '✅ Davet kopyalandı';
+                setTimeout(() => {
+                    lobbyShareBtn.innerHTML = '📤 Davet Et';
+                }, 2000);
+            } catch (_) {
+                showToast('Kod: ' + data.roomCode, 'success');
+            }
+        };
+    }
+
     lobbyLeaveBtn.onclick = () => {
+        socket.emit('leaveRoom');
         sessionStorage.removeItem('lobbyData');
         sessionStorage.removeItem('gameData');
+        sessionStorage.removeItem('roomCode');
         window.location.href = '/';
     };
 }
@@ -2284,7 +2319,10 @@ socket.on('error', (data) => {
         const playerName = sessionStorage.getItem('playerName');
         if (playerName) {
             showToast('Bağlantı yenileniyor...', 'info');
-            socket.emit('rejoinRoom', { playerName });
+            socket.emit('rejoinRoom', {
+                playerName,
+                roomCode: sessionStorage.getItem('roomCode') || (JSON.parse(sessionStorage.getItem('lobbyData') || '{}').roomCode)
+            });
         }
     }
 });

@@ -1838,6 +1838,30 @@ body {
     transition: all 0.2s;
 }
 
+.lobby-room-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 12px;
+}
+
+.lobby-room-actions .lobby-room-code-copy {
+    margin-top: 0;
+}
+
+.lobby-invite-hint {
+    margin-top: 12px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.lobby-share-btn {
+    background: rgba(251, 191, 36, 0.2);
+    border-color: rgba(251, 191, 36, 0.45);
+    color: var(--accent);
+}
+
 .lobby-room-code-copy:hover {
     background: rgba(255, 255, 255, 0.2);
 }
