@@ -12,8 +12,6 @@ socket.on('connect_error', (err) => {
     showError('Sunucuyla bağlantı kurulamadı! Lütfen sayfayı yenileyin.');
 });
 
-const PROFILE_KEYS = ['p-amber', 'p-teal', 'p-coral', 'p-sky', 'p-lime', 'p-rose'];
-
 const playerNameInput = document.getElementById('playerNameInput');
 const roomCodeInput = document.getElementById('roomCodeInput');
 const errorToast = document.getElementById('errorToast');
@@ -23,18 +21,15 @@ const teamModeToggle = document.getElementById('teamModeToggle');
 const stackingModeToggle = document.getElementById('stackingModeToggle');
 const penaltyModeToggle = document.getElementById('penaltyModeToggle');
 const tgUserBadge = document.getElementById('tgUserBadge');
-const profilePreviewAvatar = document.getElementById('profilePreviewAvatar');
 const profilePreviewName = document.getElementById('profilePreviewName');
+const profilePreviewImg = document.getElementById('profilePreviewImg');
+const profilePreviewInitial = document.getElementById('profilePreviewInitial');
 
 let playerName = '';
-let selectedAvatar = 'p-amber';
+let selectedAvatar = '';
 let selectedIstaka = 'istaka.jpg';
 let telegramUserId = null;
-
-function normalizeProfile(avatar) {
-    if (PROFILE_KEYS.includes(avatar)) return avatar;
-    return 'p-amber';
-}
+let telegramPhotoUrl = null;
 
 function getInitial(name) {
     const t = (name || 'O').trim();
@@ -44,23 +39,28 @@ function getInitial(name) {
 function refreshProfilePreview() {
     const name = (playerNameInput && playerNameInput.value.trim()) || playerName || 'Oyuncu';
     if (profilePreviewName) profilePreviewName.textContent = name;
-    if (profilePreviewAvatar) {
-        profilePreviewAvatar.textContent = getInitial(name);
-        profilePreviewAvatar.dataset.profile = selectedAvatar;
+    if (profilePreviewInitial) profilePreviewInitial.textContent = getInitial(name);
+
+    const photo = telegramPhotoUrl
+        || (telegramUserId ? `/api/avatar/${telegramUserId}` : '')
+        || selectedAvatar;
+
+    if (profilePreviewImg && photo) {
+        profilePreviewImg.onload = () => {
+            profilePreviewImg.classList.remove('hidden');
+            if (profilePreviewInitial) profilePreviewInitial.classList.add('hidden');
+        };
+        profilePreviewImg.onerror = () => {
+            profilePreviewImg.classList.add('hidden');
+            if (profilePreviewInitial) profilePreviewInitial.classList.remove('hidden');
+        };
+        profilePreviewImg.src = photo;
+        profilePreviewImg.alt = name;
+    } else if (profilePreviewImg) {
+        profilePreviewImg.classList.add('hidden');
+        if (profilePreviewInitial) profilePreviewInitial.classList.remove('hidden');
     }
 }
-
-const avatarOptions = document.querySelectorAll('.avatar-option');
-avatarOptions.forEach(option => {
-    option.addEventListener('click', () => {
-        avatarOptions.forEach(o => o.classList.remove('selected'));
-        option.classList.add('selected');
-        selectedAvatar = normalizeProfile(option.dataset.avatar);
-        refreshProfilePreview();
-        playSound('click');
-        if (window.BerlinTelegram) BerlinTelegram.haptic('light');
-    });
-});
 
 const istakaOptions = document.querySelectorAll('.istaka-option');
 istakaOptions.forEach(option => {
@@ -116,9 +116,11 @@ function resolvePlayerName() {
 }
 
 function saveSelections() {
-    localStorage.setItem('okeyPlayerAvatar', selectedAvatar);
+    if (selectedAvatar) localStorage.setItem('okeyPlayerAvatar', selectedAvatar);
     localStorage.setItem('okeyPlayerIstaka', selectedIstaka);
     sessionStorage.setItem('selectedIstaka', selectedIstaka);
+    if (telegramUserId) sessionStorage.setItem('telegramUserId', String(telegramUserId));
+    if (telegramPhotoUrl) sessionStorage.setItem('telegramPhotoUrl', telegramPhotoUrl);
 }
 
 function emitJoin({ createRoom, roomCode }) {
@@ -127,6 +129,11 @@ function emitJoin({ createRoom, roomCode }) {
     playSound('click');
     if (window.BerlinTelegram) BerlinTelegram.haptic('light');
 
+    const avatar = telegramPhotoUrl
+        || (telegramUserId ? `/api/avatar/${telegramUserId}` : '')
+        || selectedAvatar
+        || '';
+
     socket.emit('joinGame', {
         playerName,
         createRoom: !!createRoom,
@@ -134,7 +141,8 @@ function emitJoin({ createRoom, roomCode }) {
         teamMode: teamModeToggle ? teamModeToggle.checked : false,
         stackingMode: stackingModeToggle ? stackingModeToggle.checked : false,
         penaltyMode: penaltyModeToggle ? penaltyModeToggle.checked : false,
-        avatar: selectedAvatar,
+        avatar,
+        photoUrl: telegramPhotoUrl || undefined,
         telegramUserId
     });
 }
@@ -145,7 +153,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const tgUser = BerlinTelegram.getUser();
         if (tgUser) {
             telegramUserId = tgUser.id;
+            telegramPhotoUrl = tgUser.photoUrl || null;
             playerName = tgUser.name;
+            if (telegramPhotoUrl) selectedAvatar = telegramPhotoUrl;
+            else if (telegramUserId) selectedAvatar = `/api/avatar/${telegramUserId}`;
+
             if (playerNameInput) {
                 playerNameInput.value = playerName;
                 playerNameInput.placeholder = 'Telegram ismin';
@@ -158,10 +170,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             sessionStorage.setItem('okeyPlayerId', playerName);
             sessionStorage.setItem('telegramUserId', String(tgUser.id));
+            if (telegramPhotoUrl) sessionStorage.setItem('telegramPhotoUrl', telegramPhotoUrl);
         }
     }
 
-    const savedAvatar = localStorage.getItem('okeyPlayerAvatar');
     const savedName = localStorage.getItem('okeyPlayerName');
 
     if (!playerName) {
@@ -182,10 +194,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    selectedAvatar = normalizeProfile(savedAvatar || selectedAvatar);
-    avatarOptions.forEach(o => {
-        o.classList.toggle('selected', o.dataset.avatar === selectedAvatar);
-    });
+    if (!telegramUserId) {
+        const savedTg = sessionStorage.getItem('telegramUserId');
+        if (savedTg) telegramUserId = savedTg;
+    }
+    if (!telegramPhotoUrl) {
+        telegramPhotoUrl = sessionStorage.getItem('telegramPhotoUrl') || null;
+    }
 
     const savedIstaka = localStorage.getItem('okeyPlayerIstaka');
     if (savedIstaka) {
@@ -197,7 +212,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     refreshProfilePreview();
 
-    // Deep link / Telegram start_param: ?room=123456
     const urlParams = new URLSearchParams(window.location.search);
     let roomFromUrl = urlParams.get('room');
     if (!roomFromUrl && window.BerlinTelegram && BerlinTelegram.tg) {

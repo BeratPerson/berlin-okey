@@ -258,6 +258,42 @@ function applySelectedIstaka() {
 }
 
 // Lobi oyuncu listesini güncelle
+function isPhotoAvatar(avatar) {
+    if (!avatar || typeof avatar !== 'string') return false;
+    return avatar.startsWith('https://') || avatar.startsWith('/api/avatar/');
+}
+
+function applyPhotoToElements(photoEl, initialEl, avatar, name) {
+    const initial = getPlayerInitial(name);
+    if (initialEl) {
+        initialEl.textContent = initial;
+        initialEl.classList.remove('hidden');
+    }
+    if (!photoEl) return;
+
+    if (isPhotoAvatar(avatar)) {
+        photoEl.onload = () => {
+            photoEl.classList.remove('hidden');
+            if (initialEl) initialEl.classList.add('hidden');
+        };
+        photoEl.onerror = () => {
+            photoEl.classList.add('hidden');
+            if (initialEl) initialEl.classList.remove('hidden');
+        };
+        if (photoEl.src !== avatar && !photoEl.src.endsWith(avatar)) {
+            photoEl.src = avatar;
+        } else if (photoEl.complete && photoEl.naturalWidth > 0) {
+            photoEl.classList.remove('hidden');
+            if (initialEl) initialEl.classList.add('hidden');
+        }
+        photoEl.alt = name || '';
+    } else {
+        photoEl.removeAttribute('src');
+        photoEl.classList.add('hidden');
+        if (initialEl) initialEl.classList.remove('hidden');
+    }
+}
+
 function updateLobbyPlayers(players, teamMode) {
     const slots = document.querySelectorAll('.lobby-player-slot');
     const playerCount = document.getElementById('lobbyPlayerCount');
@@ -269,11 +305,18 @@ function updateLobbyPlayers(players, teamMode) {
         slot.classList.add('empty');
         const nameEl = slot.querySelector('.player-name');
         const faceEl = slot.querySelector('.lobby-profile-face');
+        const photoEl = slot.querySelector('.lobby-profile-photo');
+        const initialEl = slot.querySelector('.lobby-profile-initial');
         if (nameEl) nameEl.textContent = 'Bekleniyor...';
-        if (faceEl) {
-            faceEl.textContent = '?';
-            faceEl.dataset.profile = 'p-amber';
+        if (initialEl) {
+            initialEl.textContent = '?';
+            initialEl.classList.remove('hidden');
         }
+        if (photoEl) {
+            photoEl.classList.add('hidden');
+            photoEl.removeAttribute('src');
+        }
+        if (faceEl) faceEl.dataset.profile = 'p-amber';
     });
 
     players.forEach((player, index) => {
@@ -282,12 +325,10 @@ function updateLobbyPlayers(players, teamMode) {
         slot.classList.remove('empty');
         slot.classList.add('filled');
         const nameEl = slot.querySelector('.player-name');
-        const faceEl = slot.querySelector('.lobby-profile-face');
+        const photoEl = slot.querySelector('.lobby-profile-photo');
+        const initialEl = slot.querySelector('.lobby-profile-initial');
         if (nameEl) nameEl.textContent = player.name;
-        if (faceEl) {
-            faceEl.textContent = getPlayerInitial(player.name);
-            faceEl.dataset.profile = resolveProfileKey(player.avatar, player.name);
-        }
+        applyPhotoToElements(photoEl, initialEl, player.avatar, player.name);
         if (teamMode && player.team) {
             slot.classList.add(`team${player.team}`);
         }
@@ -655,19 +696,9 @@ function updateLeftDiscardDisplay(tile) {
 }
 
 // Oyuncuları göster
-const PROFILE_KEYS = ['p-amber', 'p-teal', 'p-coral', 'p-sky', 'p-lime', 'p-rose'];
-
 function getPlayerInitial(name) {
     const t = (name || '?').trim();
     return (t.charAt(0) || '?').toUpperCase();
-}
-
-function resolveProfileKey(avatar, name) {
-    if (PROFILE_KEYS.includes(avatar)) return avatar;
-    const str = String(name || avatar || 'x');
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) hash = (hash + str.charCodeAt(i) * (i + 1)) % PROFILE_KEYS.length;
-    return PROFILE_KEYS[hash];
 }
 
 function updatePlayersDisplay() {
@@ -690,7 +721,7 @@ function updatePlayersDisplay() {
         const avatarEl = document.getElementById(`${displayPos}PlayerAvatar`);
 
         const displayName = relativePos === 0 ? 'Sen' : player.name;
-        const profileKey = resolveProfileKey(player.avatar, player.name);
+        const realName = player.name || displayName;
 
         if (nameEl) nameEl.textContent = displayName;
         if (countEl) {
@@ -710,13 +741,37 @@ function updatePlayersDisplay() {
                 infoEl.classList.add(`team${player.team}`);
             }
         }
+
+        // Telegram PP veya baş harf
         if (faceEl) {
-            faceEl.textContent = getPlayerInitial(relativePos === 0 ? (player.name || 'S') : player.name);
-            faceEl.dataset.profile = profileKey;
+            faceEl.textContent = getPlayerInitial(realName);
+            faceEl.classList.toggle('has-photo', isPhotoAvatar(player.avatar));
         }
         if (avatarEl) {
-            avatarEl.classList.add('hidden');
-            avatarEl.style.display = 'none';
+            if (isPhotoAvatar(player.avatar)) {
+                avatarEl.onload = () => {
+                    avatarEl.classList.remove('hidden');
+                    avatarEl.style.display = 'block';
+                    if (faceEl) faceEl.classList.add('has-photo');
+                };
+                avatarEl.onerror = () => {
+                    avatarEl.classList.add('hidden');
+                    avatarEl.style.display = 'none';
+                    if (faceEl) faceEl.classList.remove('has-photo');
+                };
+                if (avatarEl.getAttribute('src') !== player.avatar) {
+                    avatarEl.src = player.avatar;
+                } else if (avatarEl.complete && avatarEl.naturalWidth > 0) {
+                    avatarEl.classList.remove('hidden');
+                    avatarEl.style.display = 'block';
+                }
+                avatarEl.alt = realName;
+            } else {
+                avatarEl.classList.add('hidden');
+                avatarEl.style.display = 'none';
+                avatarEl.removeAttribute('src');
+                if (faceEl) faceEl.classList.remove('has-photo');
+            }
         }
     });
 }

@@ -7,7 +7,7 @@ const path = require('path');
 const GameLogic = require('./gameLogic');
 const Logger = require('./logger');
 const RoomManager = require('./roomManager');
-const { startTelegramBot } = require('./telegramBot');
+const { startTelegramBot, getUserProfilePhotoFileUrl } = require('./telegramBot');
 
 const app = express();
 const server = http.createServer(app);
@@ -26,12 +26,72 @@ const TURN_SECONDS = 30;
 const TURN_WARN_SECONDS = 15;
 const TURN_DANGER_SECONDS = 8;
 
+const avatarCache = new Map(); // telegramUserId -> Buffer meta
+
 app.use(express.static(path.join(__dirname, '../public')));
 app.use('/asset', express.static(path.join(__dirname, '../asset')));
 
 app.get('/health', (req, res) => {
     res.status(200).json({ ok: true, service: 'berlin-okey' });
 });
+
+/** Telegram PP proxy — bot token istemciye sızmaz */
+app.get('/api/avatar/:userId', async (req, res) => {
+    const userId = String(req.params.userId || '').replace(/\D/g, '');
+    if (!userId) return res.status(400).end();
+
+    try {
+        const cached = avatarCache.get(userId);
+        if (cached && cached.expires > Date.now()) {
+            res.set('Content-Type', cached.contentType);
+            res.set('Cache-Control', 'public, max-age=1800');
+            return res.send(cached.buffer);
+        }
+
+        const fileUrl = await getUserProfilePhotoFileUrl(userId);
+        if (!fileUrl) return res.status(404).end();
+
+        const imgRes = await fetch(fileUrl);
+        if (!imgRes.ok) return res.status(404).end();
+        const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
+        const buffer = Buffer.from(await imgRes.arrayBuffer());
+        avatarCache.set(userId, {
+            buffer,
+            contentType,
+            expires: Date.now() + 30 * 60 * 1000
+        });
+        res.set('Content-Type', contentType);
+        res.set('Cache-Control', 'public, max-age=1800');
+        return res.send(buffer);
+    } catch (err) {
+        Logger.warn(`Avatar proxy hata: ${err.message}`);
+        return res.status(404).end();
+    }
+});
+
+function isSafeHttpUrl(value) {
+    if (typeof value !== 'string' || value.length > 600) return false;
+    try {
+        const u = new URL(value);
+        return u.protocol === 'https:';
+    } catch (_) {
+        return false;
+    }
+}
+
+async function resolvePlayerAvatar({ avatar, telegramUserId, photoUrl }) {
+    if (isSafeHttpUrl(photoUrl)) return photoUrl;
+    if (isSafeHttpUrl(avatar) && !String(avatar).includes('api.telegram.org/file/bot')) {
+        return avatar;
+    }
+    const tgId = telegramUserId ? String(telegramUserId).replace(/\D/g, '') : '';
+    if (tgId) {
+        // Proxy yolu — token gizli kalır
+        const fileUrl = await getUserProfilePhotoFileUrl(tgId);
+        if (fileUrl) return `/api/avatar/${tgId}`;
+    }
+    return '';
+}
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/index.html'));
@@ -246,20 +306,22 @@ function attachPlayerToSocket(socket, room, playerName, avatar) {
     socket.join(room.code);
     socket.roomCode = room.code;
     socket.playerName = playerName;
-    socket.avatar = avatar || 'p-amber';
+    socket.avatar = avatar || '';
 }
 
 io.on('connection', (socket) => {
     Logger.socket(`Yeni bağlantı: ${socket.id}`);
 
     // Oda oluştur veya kod ile katıl
-    socket.on('joinGame', (data) => {
+    socket.on('joinGame', async (data) => {
         const {
             playerName,
             teamMode,
             stackingMode,
             penaltyMode,
             avatar,
+            photoUrl,
+            telegramUserId,
             roomCode: rawCode,
             createRoom
         } = data || {};
@@ -270,7 +332,11 @@ io.on('connection', (socket) => {
         }
 
         const name = String(playerName).trim().slice(0, 15);
-        const avatarName = avatar || 'p-amber';
+        const avatarName = await resolvePlayerAvatar({
+            avatar,
+            photoUrl,
+            telegramUserId
+        });
         let room = null;
         const joinCode = roomManager.normalizeCode(rawCode);
 
@@ -431,8 +497,8 @@ io.on('connection', (socket) => {
                 return;
             }
 
-            const newPlayer = roomManager.addPlayer(room, socket.id, playerName, 'p-amber');
-            attachPlayerToSocket(socket, room, playerName, 'p-amber');
+            const newPlayer = roomManager.addPlayer(room, socket.id, playerName, '');
+            attachPlayerToSocket(socket, room, playerName, '');
 
             io.to(room.code).emit('playerJoined', {
                 player: newPlayer,

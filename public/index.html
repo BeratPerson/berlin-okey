@@ -42,9 +42,12 @@
 
         <section id="nameSection" class="card lobby-panel">
             <div class="profile-preview" id="profilePreview">
-                <div class="profile-preview-avatar" id="profilePreviewAvatar" data-profile="p-amber">B</div>
+                <div class="profile-preview-avatar" id="profilePreviewAvatar">
+                    <img id="profilePreviewImg" class="profile-photo hidden" alt="">
+                    <span id="profilePreviewInitial" class="profile-initial">B</span>
+                </div>
                 <div class="profile-preview-meta">
-                    <span class="profile-preview-label">Profilin</span>
+                    <span class="profile-preview-label">Telegram profilin</span>
                     <span class="profile-preview-name" id="profilePreviewName">Oyuncu</span>
                 </div>
             </div>
@@ -52,18 +55,6 @@
             <div class="name-input-container">
                 <input type="text" id="playerNameInput" class="name-input" placeholder="İsmini yaz..." maxlength="15"
                     autocomplete="off">
-            </div>
-
-            <div class="avatar-selection">
-                <p class="section-label">Profil rengi</p>
-                <div class="avatar-grid profile-swatches">
-                    <button type="button" class="avatar-option profile-swatch selected" data-avatar="p-amber" aria-label="Amber"></button>
-                    <button type="button" class="avatar-option profile-swatch" data-avatar="p-teal" aria-label="Teal"></button>
-                    <button type="button" class="avatar-option profile-swatch" data-avatar="p-coral" aria-label="Coral"></button>
-                    <button type="button" class="avatar-option profile-swatch" data-avatar="p-sky" aria-label="Sky"></button>
-                    <button type="button" class="avatar-option profile-swatch" data-avatar="p-lime" aria-label="Lime"></button>
-                    <button type="button" class="avatar-option profile-swatch" data-avatar="p-rose" aria-label="Rose"></button>
-                </div>
             </div>
 
             <div class="istaka-selection">

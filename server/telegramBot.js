@@ -160,10 +160,31 @@ function stop() {
     polling = false;
 }
 
+/** Profil fotoğrafının Bot API file URL'ini döner (yalnızca sunucu içi kullanım). */
+async function getUserProfilePhotoFileUrl(userId) {
+    if (!BOT_TOKEN || !userId) return null;
+    try {
+        const photos = await telegramApi('getUserProfilePhotos', {
+            user_id: Number(userId),
+            limit: 1
+        });
+        const sizes = photos && photos.total_count > 0 && photos.photos && photos.photos[0];
+        if (!sizes || !sizes.length) return null;
+        const best = sizes[sizes.length - 1];
+        const file = await telegramApi('getFile', { file_id: best.file_id });
+        if (!file || !file.file_path) return null;
+        return `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`;
+    } catch (err) {
+        Logger.warn(`Profil foto alınamadı (${userId}): ${err.message}`);
+        return null;
+    }
+}
+
 module.exports = {
     startTelegramBot,
     stopTelegramBot: stop,
     setupMenuButton,
+    getUserProfilePhotoFileUrl,
     WEBAPP_URL,
     BOT_USERNAME
 };

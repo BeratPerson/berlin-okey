@@ -559,6 +559,90 @@ body {
     }
 }
 
+/* Telegram profil fotoğrafları */
+.profile-preview-avatar {
+    position: relative;
+    overflow: hidden;
+    background: #2a6b52;
+}
+
+.profile-preview-avatar .profile-photo {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+.profile-preview-avatar .profile-initial {
+    position: relative;
+    z-index: 0;
+    font-family: var(--font-display);
+    font-weight: 700;
+    color: #0c1a14;
+}
+
+.profile-preview-avatar .profile-photo:not(.hidden) ~ .profile-initial,
+.profile-initial.hidden {
+    display: none;
+}
+
+.lobby-profile-face {
+    position: relative;
+    overflow: hidden;
+    background: #2a6b52;
+}
+
+.lobby-profile-photo {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+    z-index: 1;
+}
+
+.lobby-profile-initial {
+    position: relative;
+    z-index: 0;
+    font-weight: 700;
+    color: #0c1a14;
+}
+
+.lobby-profile-photo.hidden {
+    display: none;
+}
+
+.avatar-wrapper {
+    position: relative;
+}
+
+.player-avatar {
+    position: absolute;
+    inset: 0;
+    width: 100% !important;
+    height: 100% !important;
+    border-radius: 50%;
+    object-fit: cover;
+    z-index: 2;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+}
+
+.player-avatar.hidden {
+    display: none !important;
+}
+
+.profile-face.has-photo {
+    color: transparent !important;
+    background: #1a3d30 !important;
+}
+
+.seat-profile .avatar-wrapper {
+    overflow: visible;
+}
+
 /* ============================================
    Ana menü YATAY — JS sınıfına bağımlı değil
    (Telegram screen.width bug'ından bağımsız)
