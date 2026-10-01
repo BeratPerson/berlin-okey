@@ -159,17 +159,6 @@ function generatePlayerId() {
     return 'Oyuncu' + Math.floor(Math.random() * 9000 + 1000);
 }
 
-function resolvePlayerName() {
-    const inputName = playerNameInput ? playerNameInput.value.trim() : '';
-    if (inputName) {
-        playerName = inputName;
-        localStorage.setItem('okeyPlayerName', playerName);
-    } else {
-        playerName = sessionStorage.getItem('okeyPlayerId') || generatePlayerId();
-    }
-    return playerName;
-}
-
 function saveSelections() {
     if (selectedAvatar) localStorage.setItem('okeyPlayerAvatar', selectedAvatar);
     localStorage.setItem('okeyPlayerIstaka', selectedIstaka);
