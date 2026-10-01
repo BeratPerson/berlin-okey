@@ -1441,6 +1441,8 @@ function selectTile(index) {
     }
 }
 
+let lastTurnSoundKey = null;
+
 // Sıra göstergesini güncelle
 function updateTurnIndicator() {
     const isMyTurn = gameState.currentPlayer === gameState.playerIndex;
@@ -1469,9 +1471,13 @@ function updateTurnIndicator() {
 
     updateTurnActionUI(isMyTurn);
 
-    if (isMyTurn) {
+    const soundKey = `${gameState.currentPlayer}:${gameState.hasDrawn ? 1 : 0}`;
+    if (isMyTurn && soundKey !== lastTurnSoundKey) {
+        lastTurnSoundKey = soundKey;
         playSound('turn');
+        if (window.BerlinTelegram) BerlinTelegram.haptic('light');
     }
+    if (!isMyTurn) lastTurnSoundKey = null;
 }
 
 function updateTurnActionUI(isMyTurn) {
