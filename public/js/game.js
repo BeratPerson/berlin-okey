@@ -445,23 +445,82 @@ function syncTilesFromSlots() {
     socket.emit('sortTiles', { tiles: gameState.tiles });
 }
 
-// Gösterge ve Okey gösterimi
+// Gösterge ve Okey gösterimi — ıstaka ile aynı sprite
 function updateIndicatorDisplay() {
     const indicatorTile = document.getElementById('indicatorTile');
     const okeyTile = document.getElementById('okeyTile');
 
-    if (gameState.indicator) {
-        indicatorTile.innerHTML = createMiniTileHTML(gameState.indicator);
+    if (indicatorTile) {
+        indicatorTile.innerHTML = '';
+        indicatorTile.classList.add('sprite-tile-host');
+        if (gameState.indicator) {
+            indicatorTile.appendChild(createDisplayTile(gameState.indicator, { interactive: false }));
+        }
     }
 
-    if (gameState.okey) {
-        okeyTile.innerHTML = createMiniTileHTML(gameState.okey);
+    if (okeyTile) {
+        okeyTile.innerHTML = '';
+        okeyTile.classList.add('sprite-tile-host');
+        if (gameState.okey) {
+            const okeyEl = createDisplayTile(gameState.okey, { interactive: false, highlightOkey: true });
+            okeyTile.appendChild(okeyEl);
+        }
     }
 }
 
 function createMiniTileHTML(tile) {
-    const colorClass = tile.color.toLowerCase();
+    // Eski çağrılar için fallback; mümkünse createDisplayTile kullan
+    const colorClass = (tile.color || '').toLowerCase();
     return `<span class="mini-tile-inner ${colorClass}">${tile.number}</span>`;
+}
+
+/** Sprite sheet pozisyonunu uygula (noktalı gerçek taş görünümü) */
+function applyTileSprite(tileEl, tile) {
+    tileEl.classList.add('tile-sprite');
+    tileEl.style.width = '50px';
+    tileEl.style.height = '70px';
+    tileEl.style.backgroundImage = "url('../asset/Taslar.png')";
+    tileEl.style.backgroundSize = '650px 350px';
+    tileEl.style.backgroundRepeat = 'no-repeat';
+
+    const colorKey = tile.isFakeJoker || tile.isJoker ? 'Sahte' : tile.color;
+    const spriteInfo = SPRITE_MAP[colorKey] || SPRITE_MAP[tile.color];
+
+    let xPos = 0;
+    let yPos = 0;
+    if (tile.isJoker || tile.isFakeJoker) {
+        xPos = 0;
+        yPos = 0;
+    } else if (spriteInfo && tile.number) {
+        xPos = (tile.number - 1) * 50;
+        yPos = (4 - spriteInfo.row) * 70;
+    }
+    tileEl.style.backgroundPosition = `-${xPos}px -${yPos}px`;
+
+    if (tile.id != null) tileEl.dataset.tileId = tile.id;
+    if (isOkey(tile) || tile.highlightOkey) {
+        tileEl.classList.add('okey');
+    }
+}
+
+/**
+ * Gösterim taşı (gösterge / okey / atık)
+ * interactive: left discard sürükle-çek için
+ */
+function createDisplayTile(tile, { interactive = false, highlightOkey = false, size = 'normal' } = {}) {
+    const tileEl = document.createElement('div');
+    applyTileSprite(tileEl, tile);
+    tileEl.classList.add('display-tile');
+    if (highlightOkey) tileEl.classList.add('okey');
+    if (size === 'discard') tileEl.classList.add('discard-sprite');
+    tileEl.draggable = false;
+
+    if (!interactive) {
+        tileEl.style.cursor = 'default';
+        tileEl.style.pointerEvents = 'none';
+    }
+
+    return tileEl;
 }
 
 // Kendi atık alanlarımız
@@ -472,14 +531,11 @@ const rightDiscardTiles = document.getElementById('rightDiscardTiles');
 function addToMyDiscards(tile) {
     if (!rightDiscardTiles) return;
 
-    // Öncekini temizle, sadece son atılan görünsün
     rightDiscardTiles.innerHTML = '';
+    rightDiscardTiles.classList.add('has-sprite-tile');
 
     if (tile) {
-        const miniTile = document.createElement('div');
-        miniTile.className = 'mini-tile';
-        miniTile.innerHTML = createMiniTileHTML(tile);
-        rightDiscardTiles.appendChild(miniTile);
+        rightDiscardTiles.appendChild(createDisplayTile(tile, { interactive: false, size: 'discard' }));
     }
 }
 
@@ -487,29 +543,23 @@ function addToMyDiscards(tile) {
 function updateLeftDiscard(tile) {
     if (!leftDiscardTiles) return;
 
-    // Öncekini temizle, sadece son atılan görünsün
     leftDiscardTiles.innerHTML = '';
+    leftDiscardTiles.classList.add('has-sprite-tile');
 
     if (tile) {
-        const miniTile = document.createElement('div');
-        miniTile.className = 'mini-tile drawable';
-        miniTile.innerHTML = createMiniTileHTML(tile);
-        leftDiscardTiles.appendChild(miniTile);
+        const spriteTile = createDisplayTile(tile, { interactive: true, size: 'discard' });
+        spriteTile.style.pointerEvents = 'auto';
+        spriteTile.style.cursor = 'grab';
+        leftDiscardTiles.appendChild(spriteTile);
 
-        // DRAG STARTED FOR LEFT DISCARD TILE
-        // Index -100 indicates Left Discard source
-        miniTile.addEventListener('mousedown', (e) => {
+        spriteTile.addEventListener('mousedown', (e) => {
             if (gameState.currentPlayer === gameState.playerIndex && !gameState.hasDrawn) {
-                // Sürükleme başlat, ama görsel olarak biraz farklı olabilir (boyut vs)
-                // Şimdilik standart drag sistemi
-                // Bir tile-sprite gibi görünmesini sağlamak için kopyalarken stil verebiliriz.
-                startMouseDrag(e, -100, miniTile);
+                startMouseDrag(e, -100, spriteTile);
             }
         });
 
-        // Tıklanabilir yap (Fallback)
-        miniTile.onclick = () => {
-            if (isDragging) return; // Drag bitişi click gibi algılanmasın
+        spriteTile.onclick = () => {
+            if (isDragging) return;
 
             if (gameState.currentPlayer !== gameState.playerIndex) {
                 showToast('Sıra sizde değil!', 'error');
@@ -521,6 +571,21 @@ function updateLeftDiscard(tile) {
             }
             socket.emit('drawTile', { fromDiscard: true });
         };
+
+        if (window.actuallyUsingTouch) {
+            spriteTile.addEventListener('touchstart', (e) => {
+                if (gameState.currentPlayer === gameState.playerIndex && !gameState.hasDrawn) {
+                    touchDragStart(e, -100, spriteTile);
+                }
+            }, { passive: true });
+            spriteTile.addEventListener('touchmove', (e) => {
+                if (touchDraggedEl) e.preventDefault();
+                touchDragMove(e, spriteTile);
+            }, { passive: false });
+            spriteTile.addEventListener('touchend', (e) => {
+                touchDragEnd(e, -100);
+            });
+        }
     }
 }
 
@@ -1210,63 +1275,25 @@ function setupCueDropZones(rows) {
 // Taş elementi oluştur
 function createTileElement(tile, index) {
     const tileEl = document.createElement('div');
-    tileEl.className = 'tile-sprite';
     tileEl.dataset.index = index;
-    tileEl.dataset.tileId = tile.id;
-
-    // Sabit boyutlar - sprite rendering için gerekli (%30 küçültüldü)
-    tileEl.style.width = '50px';
-    tileEl.style.height = '70px';
-    tileEl.style.backgroundSize = '650px 350px';
-
-    const spriteInfo = SPRITE_MAP[tile.color];
-
-    if (spriteInfo) {
-        let xPos = 0;
-        let yPos = 0;
-
-        if (tile.isJoker) {
-            xPos = 0;
-            yPos = 0;
-        } else {
-            // Her taş 50px genişliğinde (küçültülmüş)
-            xPos = (tile.number - 1) * 50;
-
-            // Satır yüksekliği 70px (küçültülmüş)
-            yPos = (4 - spriteInfo.row) * 70;
-        }
-
-        tileEl.style.backgroundPosition = `-${xPos}px -${yPos}px`;
-    }
-
-    // Okey mi kontrol et
-    if (isOkey(tile)) {
-        tileEl.classList.add('okey');
-    }
+    applyTileSprite(tileEl, tile);
 
     // Click event - only for selection, not drag
     tileEl.addEventListener('click', (e) => {
-        // Click sadece drag olmadığında çalışır (isDragging kontrolü onMouseUp'ta)
         if (!isDragging) {
-            console.log('Taş tıklandı:', index, tile);
             selectTile(index);
         }
     });
 
-    // Custom Mouse Drag System (Native drag yerine)
     tileEl.addEventListener('mousedown', (e) => {
         startMouseDrag(e, index, tileEl);
     });
 
-    // Native drag'ı devre dışı bırak (custom sistem kullanıyoruz)
     tileEl.draggable = false;
     tileEl.addEventListener('dragstart', (e) => {
-        e.preventDefault(); // Native drag'ı engelle
+        e.preventDefault();
     });
 
-    // Touch Events - Only for ACTUAL touch devices
-    // Don't use touch events if this is a desktop/mouse - it interferes with native drag
-    // We detect actual touch by checking if a touch happened before rendering
     if (window.actuallyUsingTouch) {
         tileEl.addEventListener('touchstart', (e) => {
             touchDragStart(e, index, tileEl);
@@ -2330,11 +2357,10 @@ function createOpenedGroupElement(tiles, playerIndex, groupIndex) {
     leftZone.dataset.position = 'left';
     groupEl.appendChild(leftZone);
 
-    // Taşları ekle
+    // Taşları ekle — gerçek sprite
     tiles.forEach(tile => {
-        const tileEl = document.createElement('div');
-        tileEl.className = 'mini-tile';
-        tileEl.innerHTML = createMiniTileHTML(tile);
+        const tileEl = createDisplayTile(tile, { interactive: false, size: 'discard' });
+        tileEl.classList.add('opened-sprite');
         groupEl.appendChild(tileEl);
     });
 

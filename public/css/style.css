@@ -423,14 +423,42 @@ body {
 }
 
 .tile-placeholder {
-    width: var(--tile-width);
-    height: var(--tile-height);
+    width: 50px;
+    height: 70px;
     background: rgba(255, 255, 255, 0.05);
     border: 1px dashed rgba(255, 255, 255, 0.2);
     border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: visible;
+}
+
+.sprite-tile-host {
+    border: none;
+    background: transparent;
+    width: auto;
+    height: auto;
+    min-width: 50px;
+    min-height: 70px;
+}
+
+.sprite-tile-host .tile-sprite,
+.sprite-tile-host .display-tile {
+    width: 50px !important;
+    height: 70px !important;
+    pointer-events: none;
+    cursor: default;
+}
+
+#okeyTile .tile-sprite {
+    box-shadow:
+        0 0 16px rgba(251, 191, 36, 0.55),
+        1px 1px 0px #bbb,
+        2px 2px 0px #999,
+        2px 2px 4px rgba(0, 0, 0, 0.4);
+    border: 2px solid rgba(251, 191, 36, 0.85);
+    border-radius: 4px;
 }
 
 /* Atılan Taşlar */
@@ -759,14 +787,7 @@ body {
     border-color: rgba(239, 68, 68, 0.4);
 }
 
-/* Atık alandaki mini taşlar */
-.discard-tiles .mini-tile {
-    width: 35px;
-    height: 50px;
-    transform: scale(0.5);
-    transform-origin: center;
-    margin: -12px 0;
-}
+/* Atık taşlar artık full sprite; eski mini ölçek kaldırıldı */
 
 .player-info.self {
     position: absolute;
@@ -2425,8 +2446,8 @@ body {
 
 /* Yan Cepler Genel Stil (Ahşap Uzantı Görünümü) */
 .player-discard {
-    width: 65px;
-    height: 95px;
+    width: 70px;
+    height: 110px;
     background: #462e29;
     /* Istaka rengine yakın */
     border: 2px solid #281a16;
@@ -2470,10 +2491,10 @@ body {
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 }
 
-/* Taş Haznesi (İçeri gömük) */
+/* Taş Haznesi — ıstaka ile aynı sprite boyutu */
 .player-discard .discard-tiles {
-    width: 44px;
-    height: 60px;
+    width: 54px;
+    height: 74px;
     background: rgba(0, 0, 0, 0.3);
     border-radius: 4px;
     box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.6);
@@ -2481,29 +2502,62 @@ body {
     align-items: center;
     justify-content: center;
     border: 1px solid rgba(255, 255, 255, 0.05);
+    overflow: visible;
+    position: relative;
+}
+
+.player-discard .discard-tiles .tile-sprite,
+.player-discard .discard-tiles .display-tile,
+.player-discard .discard-tiles .discard-sprite {
+    width: 50px !important;
+    height: 70px !important;
+    transform: none !important;
+    margin: 0 !important;
+    z-index: 2;
 }
 
 .player-discard.left-discard .discard-tiles {
     border-bottom: 2px solid #10b981;
-    /* Yeşil çizgi */
 }
 
 .player-discard.right-discard .discard-tiles {
     border-bottom: 2px solid #ef4444;
-    /* Kırmızı çizgi */
 }
 
-/* İkonlar */
-.player-discard.left-discard .discard-tiles::before {
+/* Boşken ipucu; sprite varken gizle */
+.player-discard.left-discard .discard-tiles:not(.has-sprite-tile)::before {
     content: '📥';
     font-size: 1.2rem;
-    opacity: 0.5;
+    opacity: 0.35;
 }
 
-.player-discard.right-discard .discard-tiles::before {
-    content: '🗑️';
+.player-discard.right-discard .discard-tiles:not(.has-sprite-tile)::before {
+    content: '📤';
     font-size: 1.2rem;
-    opacity: 0.5;
+    opacity: 0.35;
+}
+
+.player-discard .discard-tiles.has-sprite-tile::before {
+    display: none !important;
+    content: none !important;
+}
+
+.discard-tiles .mini-tile {
+    width: 50px;
+    height: 70px;
+    transform: none;
+    margin: 0;
+}
+
+.opened-group .opened-sprite,
+.opened-group .display-tile {
+    width: 50px !important;
+    height: 70px !important;
+    transform: scale(0.72);
+    transform-origin: center center;
+    margin: -10px -7px;
+    flex-shrink: 0;
+    pointer-events: none;
 }
 
 /* Hover Efektleri */
@@ -2515,9 +2569,14 @@ body {
 /* Mobilde Pozisyon Ayarları */
 @media (max-width: 768px) {
     .player-discard {
-        width: 55px;
-        height: 75px;
+        width: 62px;
+        height: 100px;
         bottom: 10px;
+    }
+
+    .player-discard .discard-tiles {
+        width: 50px;
+        height: 70px;
     }
 
     .player-discard.left-discard {
